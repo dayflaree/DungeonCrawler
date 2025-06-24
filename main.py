@@ -1526,11 +1526,17 @@ class DungeonCrawler:
                         self.swing_start_time = pygame.time.get_ticks()
                         self.try_attack_skeletons()
                     elif self.inventory[self.selected_slot]["type"] == "fire_scroll" and not self.is_swinging:
-                        self.is_swinging = True
-                        self.swing_start_time = pygame.time.get_ticks()
-                        self.cast_fire_spell()
+                        # Check if player has enough mana before starting animation
+                        if self.current_mana >= 5:
+                            self.is_swinging = True
+                            self.swing_start_time = pygame.time.get_ticks()
+                            self.cast_fire_spell()
+                        else:
+                            print("Not enough mana to cast fire spell!")
                     elif self.inventory[self.selected_slot]["type"] == "health_potion":
                         self.use_health_potion()
+                    elif self.inventory[self.selected_slot]["type"] == "magic_potion":
+                        self.use_magic_potion()
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
@@ -2193,6 +2199,15 @@ class DungeonCrawler:
 
     def cast_fire_spell(self):
         """Cast a fire spell that creates a fireball projectile"""
+        # Check if player has enough mana
+        if self.current_mana < 5:
+            print("Not enough mana to cast fire spell!")
+            return
+        
+        # Consume mana
+        self.current_mana -= 5
+        print(f"Cast fire spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
+        
         # Calculate fireball spawn position (in front of player)
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
@@ -2207,7 +2222,7 @@ class DungeonCrawler:
         fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z)
         self.fireballs.append(fireball)
         
-        print(f"Cast fire spell! Fireball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
+        print(f"Fireball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
 
     def check_nearby_items(self):
         """Check if player is near any dropped items and update nearby_item"""
@@ -2300,6 +2315,34 @@ class DungeonCrawler:
         actual_heal = self.current_health - old_health
         
         print(f"Used health potion! Healed {actual_heal} HP (Health: {self.current_health}/{self.max_health})")
+        
+        # Consume one potion
+        if item_data["count"] > 1:
+            item_data["count"] -= 1
+        else:
+            # Remove the item and shift all items to the right of this slot left
+            for i in range(slot, self.num_slots - 1):
+                self.inventory[i] = self.inventory[i + 1]
+            self.inventory[self.num_slots - 1] = {"type": "empty", "count": 0}
+            # If the selected slot is now empty, move selection left if possible
+            if self.inventory[slot]["type"] == "empty" and slot > 0:
+                self.selected_slot = slot - 1
+
+    def use_magic_potion(self):
+        """Use a magic potion to restore 5 mana"""
+        slot = self.selected_slot
+        item_data = self.inventory[slot]
+        
+        if item_data["type"] != "magic_potion" or item_data["count"] <= 0:
+            return  # Not a magic potion or no potions left
+        
+        # Restore mana
+        restore_amount = 5
+        old_mana = self.current_mana
+        self.current_mana = min(self.max_mana, self.current_mana + restore_amount)
+        actual_restore = self.current_mana - old_mana
+        
+        print(f"Used magic potion! Restored {actual_restore} mana (Mana: {self.current_mana}/{self.max_mana})")
         
         # Consume one potion
         if item_data["count"] > 1:
