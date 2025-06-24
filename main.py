@@ -200,6 +200,8 @@ class DungeonRenderer:
         self.health_bar_texture_id = None
         self.health_fill_texture_id = None
         self.skeleton_texture_id = None
+        self.potion_health_texture_id = None
+        self.potion_magic_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -376,6 +378,32 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, held_skeleton_sword_image.width, held_skeleton_sword_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, held_skeleton_sword_image_data)
             print(f"Held skeleton sword loaded: {held_skeleton_sword_image.width}x{held_skeleton_sword_image.height}")
             
+            # Load health potion texture
+            potion_health_image = Image.open("assets/potion_health.png")
+            potion_health_image = potion_health_image.convert("RGBA")
+            potion_health_image_data = potion_health_image.tobytes()
+            self.potion_health_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.potion_health_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, potion_health_image.width, potion_health_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, potion_health_image_data)
+            print(f"Health potion texture loaded: {potion_health_image.width}x{potion_health_image.height}")
+            
+            # Load magic potion texture
+            potion_magic_image = Image.open("assets/potion_magic.png")
+            potion_magic_image = potion_magic_image.convert("RGBA")
+            potion_magic_image_data = potion_magic_image.tobytes()
+            self.potion_magic_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.potion_magic_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, potion_magic_image.width, potion_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, potion_magic_image_data)
+            print(f"Magic potion texture loaded: {potion_magic_image.width}x{potion_magic_image.height}")
+            
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
             print("All textures loaded successfully")
@@ -391,6 +419,8 @@ class DungeonRenderer:
             self.weapon_texture_id = None
             self.health_bar_texture_id = None
             self.health_fill_texture_id = None
+            self.potion_health_texture_id = None
+            self.potion_magic_texture_id = None
     
     def render_wall(self, x, z, height=2.0, camera_pos=None):
         """Render a wall segment with proper lighting"""
@@ -993,12 +1023,23 @@ class DungeonRenderer:
         # Choose texture based on item type
         if item.item_type == 'skeleton_sword' and self.skeleton_sword_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.skeleton_sword_texture_id)
+            item_size = 0.5
+            item_height = item_size * (984/718)  # Skeleton sword aspect ratio
         elif item.item_type == 'rusty_sword' and self.weapon_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.weapon_texture_id)  # wep_rusty.png (hotbar icon)
+            item_size = 0.5
+            item_height = item_size * (984/718)  # Rusty sword aspect ratio
+        elif item.item_type == 'health_potion' and self.potion_health_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.potion_health_texture_id)
+            item_size = 0.25
+            item_height = item_size * (160/110)  # Potion aspect ratio (110x160)
+        elif item.item_type == 'magic_potion' and self.potion_magic_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.potion_magic_texture_id)
+            item_size = 0.25
+            item_height = item_size * (160/110)  # Potion aspect ratio (110x160)
         else:
             return
         # Billboarded sprite
-        item_size = 0.5
         y = 0.15
         angle = 0
         if camera_pos:
@@ -1012,8 +1053,8 @@ class DungeonRenderer:
         glNormal3f(0, 0, 1)
         glTexCoord2f(0, 1); glVertex3f(-item_size/2, 0, 0)
         glTexCoord2f(1, 1); glVertex3f(item_size/2, 0, 0)
-        glTexCoord2f(1, 0); glVertex3f(item_size/2, item_size, 0)
-        glTexCoord2f(0, 0); glVertex3f(-item_size/2, item_size, 0)
+        glTexCoord2f(1, 0); glVertex3f(item_size/2, item_height, 0)
+        glTexCoord2f(0, 0); glVertex3f(-item_size/2, item_height, 0)
         glEnd()
         glPopMatrix()
         glBindTexture(GL_TEXTURE_2D, 0)
@@ -1050,7 +1091,7 @@ def astar(grid, start, goal):
     return []
 
 class Skeleton:
-    def __init__(self, x, z, center_x, center_z, health=20):
+    def __init__(self, x, z, center_x, center_z, health=40):
         self.x = x
         self.z = z
         self.center_x = center_x
@@ -1132,6 +1173,14 @@ class Skeleton:
             self.center_x = new_x
             self.center_z = new_z
 
+class DroppedItem:
+    def __init__(self, item_type, x, z):
+        self.item_type = item_type
+        self.x = x
+        self.z = z
+        self.collected = False
+        self.spawn_time = time.time()
+
 class DungeonCrawler:
     def __init__(self):
         pygame.init()
@@ -1169,8 +1218,8 @@ class DungeonCrawler:
         self.num_slots = 7  # Total number of hotbar slots
         
         # Inventory system
-        self.inventory = ["empty"] * self.num_slots  # Initialize with string items
-        self.inventory[0] = "rusty_sword"  # Place starter item in first slot
+        self.inventory = [{"type": "empty", "count": 0}] * self.num_slots  # Initialize with dict items
+        self.inventory[0] = {"type": "rusty_sword", "count": 1}  # Place starter item in first slot
         
         # Sword swing animation variables
         self.is_swinging = False
@@ -1286,10 +1335,12 @@ class DungeonCrawler:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click
                     # Check if a sword is equipped and start swing animation
-                    if self.inventory[self.selected_slot] in ("rusty_sword", "skeleton_sword") and not self.is_swinging:
+                    if self.inventory[self.selected_slot]["type"] in ("rusty_sword", "skeleton_sword") and not self.is_swinging:
                         self.is_swinging = True
                         self.swing_start_time = pygame.time.get_ticks()
                         self.try_attack_skeletons()
+                    elif self.inventory[self.selected_slot]["type"] == "health_potion":
+                        self.use_health_potion()
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
@@ -1324,16 +1375,37 @@ class DungeonCrawler:
         return True
     
     def interact_with_chest(self):
-        """Handle chest interaction - remove the chest from the game"""
+        """Handle chest interaction - drop items and remove the chest from the game"""
         if self.nearby_chest is not None:
-            print(f"Attempting to remove chest: {self.nearby_chest}")
+            print(f"Attempting to open chest: {self.nearby_chest}")
             print(f"Current chest positions: {self.dungeon_generator.chest_positions}")
+            
+            # Get chest position for item drops
+            chest_x, chest_z, center_x, center_z = self.nearby_chest
+            
+            # Drop 3-5 random items around the chest
+            num_items = random.randint(3, 5)
+            available_items = ['health_potion', 'magic_potion']
+            
+            for i in range(num_items):
+                # Randomly select item type
+                item_type = random.choice(available_items)
+                
+                # Calculate random position around chest (within 1.5 units)
+                angle = random.uniform(0, 2 * math.pi)
+                distance = random.uniform(0.5, 1.5)
+                drop_x = center_x + math.cos(angle) * distance
+                drop_z = center_z + math.sin(angle) * distance
+                
+                # Create dropped item
+                self.dropped_items.append(DroppedItem(item_type, drop_x, drop_z))
+                print(f"Dropped {item_type} at ({drop_x:.2f}, {drop_z:.2f})")
             
             # Remove the chest from the chest positions list
             if hasattr(self.dungeon_generator, 'chest_positions'):
                 if self.nearby_chest in self.dungeon_generator.chest_positions:
                     self.dungeon_generator.chest_positions.remove(self.nearby_chest)
-                    print(f"Chest opened and removed! Remaining chests: {len(self.dungeon_generator.chest_positions)}")
+                    print(f"Chest opened and removed! Dropped {num_items} items. Remaining chests: {len(self.dungeon_generator.chest_positions)}")
                     
                     # Update the spatial grid to reflect the removed chest
                     if hasattr(self.renderer, 'chest_chunks'):
@@ -1413,7 +1485,8 @@ class DungeonCrawler:
         for i in range(self.num_slots):
             slot_x = hotbar_x + (i * slot_width) + (slot_width * 0.1)  # 10% margin
             slot_y = hotbar_y + (hotbar_height - slot_height) / 2  # Center vertically
-            if self.inventory[i] == "rusty_sword" and self.renderer.weapon_texture_id:
+            item_data = self.inventory[i]
+            if item_data["type"] == "rusty_sword" and self.renderer.weapon_texture_id:
                 glBindTexture(GL_TEXTURE_2D, self.renderer.weapon_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y)
@@ -1422,13 +1495,31 @@ class DungeonCrawler:
                 glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y + slot_height)
                 glEnd()
                 glBindTexture(GL_TEXTURE_2D, 0)
-            elif self.inventory[i] == "skeleton_sword" and self.renderer.skeleton_sword_texture_id:
+            elif item_data["type"] == "skeleton_sword" and self.renderer.skeleton_sword_texture_id:
                 glBindTexture(GL_TEXTURE_2D, self.renderer.skeleton_sword_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y)
                 glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y)
                 glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
                 glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "health_potion" and self.renderer.potion_health_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.potion_health_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "magic_potion" and self.renderer.potion_magic_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.potion_magic_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
                 glEnd()
                 glBindTexture(GL_TEXTURE_2D, 0)
         # Restore OpenGL state
@@ -1443,22 +1534,35 @@ class DungeonCrawler:
     
     def render_equipped_weapon(self):
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-        if self.inventory[self.selected_slot] == "rusty_sword":
+        if self.inventory[self.selected_slot]["type"] == "rusty_sword":
             if not self.renderer.held_weapon_texture_id:
                 return
             held_texture_id = self.renderer.held_weapon_texture_id
             held_width = 260
             held_height = held_width * (500/208)
-        elif self.inventory[self.selected_slot] == "skeleton_sword":
+        elif self.inventory[self.selected_slot]["type"] == "skeleton_sword":
             if not self.renderer.held_skeleton_sword_texture_id:
                 return
             held_texture_id = self.renderer.held_skeleton_sword_texture_id
             held_width = 260
             held_height = held_width * (250/108)
+        elif self.inventory[self.selected_slot]["type"] == "health_potion":
+            if not self.renderer.potion_health_texture_id:
+                return
+            held_texture_id = self.renderer.potion_health_texture_id
+            held_width = 200
+            held_height = held_width * (160/110)  # Potion aspect ratio
+        elif self.inventory[self.selected_slot]["type"] == "magic_potion":
+            if not self.renderer.potion_magic_texture_id:
+                return
+            held_texture_id = self.renderer.potion_magic_texture_id
+            held_width = 200
+            held_height = held_width * (160/110)  # Potion aspect ratio
         else:
             return
         swing_rotation = 0
-        if self.is_swinging:
+        # Only show swing animation for weapons, not potions
+        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword"]:
             current_time = pygame.time.get_ticks()
             elapsed_time = current_time - self.swing_start_time
             if elapsed_time < self.swing_duration:
@@ -1486,13 +1590,24 @@ class DungeonCrawler:
         weapon_y = -50
         glPushMatrix()
         glTranslatef(weapon_x + held_width/2, weapon_y + held_height/2, 0)
-        glRotatef(15 + swing_rotation, 0, 0, 1)
+        # Different rotation for weapons vs potions
+        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword"]:
+            glRotatef(15 + swing_rotation, 0, 0, 1)
+        else:
+            glRotatef(5, 0, 0, 1)  # Slight tilt for potions
         glTranslatef(-(weapon_x + held_width/2), -(weapon_y + held_height/2), 0)
         glBegin(GL_QUADS)
-        glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)
-        glTexCoord2f(1, 1); glVertex2f(weapon_x + held_width, weapon_y)
-        glTexCoord2f(1, 0); glVertex2f(weapon_x + held_width, weapon_y + held_height)
-        glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + held_height)
+        # Flip texture coordinates for potions to show right-side up
+        if self.inventory[self.selected_slot]["type"] in ["health_potion", "magic_potion"]:
+            glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)
+            glTexCoord2f(1, 1); glVertex2f(weapon_x + held_width, weapon_y)
+            glTexCoord2f(1, 0); glVertex2f(weapon_x + held_width, weapon_y + held_height)
+            glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + held_height)
+        else:
+            glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)
+            glTexCoord2f(1, 1); glVertex2f(weapon_x + held_width, weapon_y)
+            glTexCoord2f(1, 0); glVertex2f(weapon_x + held_width, weapon_y + held_height)
+            glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + held_height)
         glEnd()
         glPopMatrix()
         glBindTexture(GL_TEXTURE_2D, 0)
@@ -1731,7 +1846,7 @@ class DungeonCrawler:
 
     def try_attack_skeletons(self):
         # Only attack if a sword is equipped and not already swinging
-        if self.inventory[self.selected_slot] not in ("rusty_sword", "skeleton_sword"):
+        if self.inventory[self.selected_slot]["type"] not in ("rusty_sword", "skeleton_sword"):
             return
         # Attack range and angle
         attack_range = 1.8  # About 2 tiles
@@ -1740,9 +1855,9 @@ class DungeonCrawler:
         yaw = self.camera_rot[1]
         forward = np.array([-math.sin(yaw), -math.cos(yaw)])
         # Set damage based on weapon
-        if self.inventory[self.selected_slot] == "rusty_sword":
+        if self.inventory[self.selected_slot]["type"] == "rusty_sword":
             damage = 5
-        elif self.inventory[self.selected_slot] == "skeleton_sword":
+        elif self.inventory[self.selected_slot]["type"] == "skeleton_sword":
             damage = 10
         else:
             damage = 0
@@ -1781,22 +1896,43 @@ class DungeonCrawler:
         if item.collected:
             return
         placed = False
-        for i in range(self.num_slots):
-            if self.inventory[i] == "empty":
-                # Allow picking up any item type
-                self.inventory[i] = item.item_type
-                item.collected = True
-                print(f"Picked up {item.item_type} in slot {i}")
-                placed = True
-                break
+        # Check if item is a potion and can be stacked
+        if item.item_type in ["health_potion", "magic_potion"]:
+            # Try to find existing stack of the same potion type
+            for i in range(self.num_slots):
+                if (self.inventory[i]["type"] == item.item_type and 
+                    self.inventory[i]["count"] > 0):
+                    self.inventory[i]["count"] += 1
+                    item.collected = True
+                    print(f"Added {item.item_type} to stack in slot {i} (total: {self.inventory[i]['count']})")
+                    placed = True
+                    break
+            # If not stacked, find first empty slot (right to left for potions)
+            if not placed:
+                for i in range(self.num_slots - 1, -1, -1):  # Right to left
+                    if self.inventory[i]["type"] == "empty":
+                        self.inventory[i] = {"type": item.item_type, "count": 1}
+                        item.collected = True
+                        print(f"Picked up {item.item_type} in slot {i}")
+                        placed = True
+                        break
+        else:
+            # For non-potion items (swords, etc.), place from left to right
+            for i in range(self.num_slots):
+                if self.inventory[i]["type"] == "empty":
+                    self.inventory[i] = {"type": item.item_type, "count": 1}
+                    item.collected = True
+                    print(f"Picked up {item.item_type} in slot {i}")
+                    placed = True
+                    break
         if not placed:
             print(f"No available hotbar slot for {item.item_type}!")
 
     def drop_selected_item(self):
         """Drop the selected item in front of the player and shift items left to fill the gap."""
         slot = self.selected_slot
-        item_type = self.inventory[slot]
-        if item_type == "empty":
+        item_data = self.inventory[slot]
+        if item_data["type"] == "empty":
             return  # Nothing to drop
         # Calculate drop position in front of player
         yaw = self.camera_rot[1]
@@ -1804,24 +1940,48 @@ class DungeonCrawler:
         drop_x = self.camera_pos[0] + (-math.sin(yaw)) * drop_distance
         drop_z = self.camera_pos[2] + (-math.cos(yaw)) * drop_distance
         # Only allow dropping known item types
-        if item_type in ("rusty_sword", "skeleton_sword"):
-            self.dropped_items.append(DroppedItem(item_type, drop_x, drop_z))
-            print(f"Dropped {item_type} from slot {slot} at ({drop_x:.2f}, {drop_z:.2f})")
-        # Remove the item and shift all items to the right of this slot left
-        for i in range(slot, self.num_slots - 1):
-            self.inventory[i] = self.inventory[i + 1]
-        self.inventory[self.num_slots - 1] = "empty"
-        # If the selected slot is now empty, move selection left if possible
-        if self.inventory[slot] == "empty" and slot > 0:
-            self.selected_slot = slot - 1
+        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion"):
+            self.dropped_items.append(DroppedItem(item_data["type"], drop_x, drop_z))
+            print(f"Dropped {item_data['type']} from slot {slot} at ({drop_x:.2f}, {drop_z:.2f})")
+        # Handle stacked items
+        if item_data["count"] > 1:
+            item_data["count"] -= 1
+        else:
+            # Remove the item and shift all items to the right of this slot left
+            for i in range(slot, self.num_slots - 1):
+                self.inventory[i] = self.inventory[i + 1]
+            self.inventory[self.num_slots - 1] = {"type": "empty", "count": 0}
+            # If the selected slot is now empty, move selection left if possible
+            if self.inventory[slot]["type"] == "empty" and slot > 0:
+                self.selected_slot = slot - 1
 
-class DroppedItem:
-    def __init__(self, item_type, x, z):
-        self.item_type = item_type  # e.g., 'skeleton_sword', 'rusty_sword'
-        self.x = x
-        self.z = z
-        self.collected = False
-        self.spawn_time = time.time()
+    def use_health_potion(self):
+        """Use a health potion to heal the player by 10 HP"""
+        slot = self.selected_slot
+        item_data = self.inventory[slot]
+        
+        if item_data["type"] != "health_potion" or item_data["count"] <= 0:
+            return  # Not a health potion or no potions left
+        
+        # Heal the player
+        heal_amount = 10
+        old_health = self.current_health
+        self.current_health = min(self.max_health, self.current_health + heal_amount)
+        actual_heal = self.current_health - old_health
+        
+        print(f"Used health potion! Healed {actual_heal} HP (Health: {self.current_health}/{self.max_health})")
+        
+        # Consume one potion
+        if item_data["count"] > 1:
+            item_data["count"] -= 1
+        else:
+            # Remove the item and shift all items to the right of this slot left
+            for i in range(slot, self.num_slots - 1):
+                self.inventory[i] = self.inventory[i + 1]
+            self.inventory[self.num_slots - 1] = {"type": "empty", "count": 0}
+            # If the selected slot is now empty, move selection left if possible
+            if self.inventory[slot]["type"] == "empty" and slot > 0:
+                self.selected_slot = slot - 1
 
 if __name__ == "__main__":
     game = DungeonCrawler()
