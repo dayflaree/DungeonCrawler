@@ -199,9 +199,14 @@ class DungeonRenderer:
         self.held_skeleton_sword_texture_id = None  # Held weapon (skeleton)
         self.health_bar_texture_id = None
         self.health_fill_texture_id = None
+        self.mana_bar_texture_id = None
+        self.mana_fill_texture_id = None
         self.skeleton_texture_id = None
         self.potion_health_texture_id = None
         self.potion_magic_texture_id = None
+        self.scroll_fire_texture_id = None
+        self.spell_fire_texture_id = None
+        self.fireball_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -339,6 +344,32 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, health_fill_image.width, health_fill_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, health_fill_image_data)
             print(f"Health fill texture loaded: {health_fill_image.width}x{health_fill_image.height}")
             
+            # Load mana bar texture
+            mana_bar_image = Image.open("assets/meter.png")
+            mana_bar_image = mana_bar_image.convert("RGBA")
+            mana_bar_image_data = mana_bar_image.tobytes()
+            self.mana_bar_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.mana_bar_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mana_bar_image.width, mana_bar_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mana_bar_image_data)
+            print(f"Mana bar texture loaded: {mana_bar_image.width}x{mana_bar_image.height}")
+            
+            # Load mana fill texture
+            mana_fill_image = Image.open("assets/magic.png")
+            mana_fill_image = mana_fill_image.convert("RGBA")
+            mana_fill_image_data = mana_fill_image.tobytes()
+            self.mana_fill_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.mana_fill_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mana_fill_image.width, mana_fill_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mana_fill_image_data)
+            print(f"Mana fill texture loaded: {mana_fill_image.width}x{mana_fill_image.height}")
+            
             # Load skeleton texture
             skeleton_image = Image.open("assets/skeleton.png")
             skeleton_image = skeleton_image.convert("RGBA")
@@ -404,6 +435,45 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, potion_magic_image.width, potion_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, potion_magic_image_data)
             print(f"Magic potion texture loaded: {potion_magic_image.width}x{potion_magic_image.height}")
             
+            # Load fire scroll texture
+            scroll_fire_image = Image.open("assets/scroll_fire.png")
+            scroll_fire_image = scroll_fire_image.convert("RGBA")
+            scroll_fire_image_data = scroll_fire_image.tobytes()
+            self.scroll_fire_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.scroll_fire_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, scroll_fire_image.width, scroll_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scroll_fire_image_data)
+            print(f"Fire scroll texture loaded: {scroll_fire_image.width}x{scroll_fire_image.height}")
+            
+            # Load spell fire texture
+            spell_fire_image = Image.open("assets/spell_fire.png")
+            spell_fire_image = spell_fire_image.convert("RGBA")
+            spell_fire_image_data = spell_fire_image.tobytes()
+            self.spell_fire_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.spell_fire_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_fire_image.width, spell_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_fire_image_data)
+            print(f"Spell fire texture loaded: {spell_fire_image.width}x{spell_fire_image.height}")
+            
+            # Load fireball texture
+            fireball_image = Image.open("assets/fireball.png")
+            fireball_image = fireball_image.convert("RGBA")
+            fireball_image_data = fireball_image.tobytes()
+            self.fireball_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fireball_image.width, fireball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, fireball_image_data)
+            print(f"Fireball texture loaded: {fireball_image.width}x{fireball_image.height}")
+            
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
             print("All textures loaded successfully")
@@ -419,8 +489,13 @@ class DungeonRenderer:
             self.weapon_texture_id = None
             self.health_bar_texture_id = None
             self.health_fill_texture_id = None
+            self.mana_bar_texture_id = None
+            self.mana_fill_texture_id = None
             self.potion_health_texture_id = None
             self.potion_magic_texture_id = None
+            self.scroll_fire_texture_id = None
+            self.spell_fire_texture_id = None
+            self.fireball_texture_id = None
     
     def render_wall(self, x, z, height=2.0, camera_pos=None):
         """Render a wall segment with proper lighting"""
@@ -1037,6 +1112,10 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, self.potion_magic_texture_id)
             item_size = 0.25
             item_height = item_size * (160/110)  # Potion aspect ratio (110x160)
+        elif item.item_type == 'fire_scroll' and self.scroll_fire_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.scroll_fire_texture_id)
+            item_size = 0.4
+            item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
         else:
             return
         # Billboarded sprite
@@ -1063,6 +1142,54 @@ class DungeonRenderer:
     def render_dropped_items(self, dropped_items, camera_pos=None):
         for item in dropped_items:
             self.render_dropped_item(item, camera_pos)
+
+    def render_fireball(self, fireball, camera_pos=None):
+        """Render a fireball as a billboarded sprite"""
+        if not fireball.active or not self.fireball_texture_id:
+            return
+        
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
+        
+        # Set material properties for fireball
+        glMaterialfv(GL_FRONT, GL_AMBIENT, [0.8, 0.4, 0.1, 1.0])
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, [1.0, 0.5, 0.2, 1.0])
+        glMaterialfv(GL_FRONT, GL_SPECULAR, [0.2, 0.1, 0.05, 1.0])
+        glMaterialf(GL_FRONT, GL_SHININESS, 10.0)
+        
+        # Fireball size and aspect ratio (109x125)
+        fireball_size = 0.4
+        fireball_height = fireball_size * (125/109)  # Fireball aspect ratio (109x125)
+        
+        # Billboarded sprite
+        y = 0.5  # Slightly higher than dropped items
+        angle = 0
+        if camera_pos:
+            to_player_x = camera_pos[0] - fireball.x
+            to_player_z = camera_pos[2] - fireball.z
+            angle = math.atan2(to_player_x, to_player_z)
+        
+        glPushMatrix()
+        glTranslatef(fireball.x, y, fireball.z)
+        glRotatef(angle * 180 / math.pi, 0, 1, 0)
+        
+        glBegin(GL_QUADS)
+        glNormal3f(0, 0, 1)
+        glTexCoord2f(0, 1); glVertex3f(-fireball_size/2, 0, 0)
+        glTexCoord2f(1, 1); glVertex3f(fireball_size/2, 0, 0)
+        glTexCoord2f(1, 0); glVertex3f(fireball_size/2, fireball_height, 0)
+        glTexCoord2f(0, 0); glVertex3f(-fireball_size/2, fireball_height, 0)
+        glEnd()
+        
+        glPopMatrix()
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_BLEND)
+
+    def render_fireballs(self, fireballs, camera_pos=None):
+        """Render all active fireballs"""
+        for fireball in fireballs:
+            self.render_fireball(fireball, camera_pos)
 
 def astar(grid, start, goal):
     """A* pathfinding for a 2D grid. Returns a list of (x, z) tiles from start to goal (inclusive), or [] if no path."""
@@ -1181,6 +1308,58 @@ class DroppedItem:
         self.collected = False
         self.spawn_time = time.time()
 
+class Fireball:
+    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0):
+        self.x = x
+        self.z = z
+        self.direction_x = direction_x
+        self.direction_z = direction_z
+        self.speed = speed
+        self.max_distance = max_distance
+        self.distance_traveled = 0.0
+        self.spawn_x = x
+        self.spawn_z = z
+        self.active = True
+    
+    def update(self):
+        """Update fireball position and check if it should be destroyed"""
+        if not self.active:
+            return
+        
+        # Move fireball in its direction
+        self.x += self.direction_x * self.speed
+        self.z += self.direction_z * self.speed
+        
+        # Calculate distance traveled
+        dx = self.x - self.spawn_x
+        dz = self.z - self.spawn_z
+        self.distance_traveled = math.sqrt(dx*dx + dz*dz)
+        
+        # Destroy if traveled too far
+        if self.distance_traveled >= self.max_distance:
+            self.active = False
+    
+    def check_collision_with_skeleton(self, skeleton):
+        """Check if fireball hits a skeleton"""
+        if not self.active or not skeleton.is_alive:
+            return False
+        
+        # Calculate distance between fireball and skeleton
+        dx = self.x - skeleton.center_x
+        dz = self.z - skeleton.center_z
+        distance = math.sqrt(dx*dx + dz*dz)
+        
+        # Collision radius (fireball size)
+        collision_radius = 0.3
+        
+        if distance <= collision_radius:
+            # Hit! Apply damage and destroy fireball
+            skeleton.take_damage(10)  # 10 damage
+            self.active = False
+            return True
+        
+        return False
+
 class DungeonCrawler:
     def __init__(self):
         pygame.init()
@@ -1230,6 +1409,10 @@ class DungeonCrawler:
         self.max_health = 100
         self.current_health = 100
         
+        # Mana system
+        self.max_mana = 100
+        self.current_mana = 100
+        
         # Mouse control
         pygame.mouse.set_visible(False)
         pygame.event.set_grab(True)
@@ -1244,6 +1427,9 @@ class DungeonCrawler:
         self.skeletons = self.dungeon_generator.skeletons
         self.dropped_items = []
         self.nearby_item = None  # Track item for interact prompt
+        
+        # Fireballs
+        self.fireballs = []
     
     def load_background_music(self):
         """Load and start the background music"""
@@ -1339,6 +1525,10 @@ class DungeonCrawler:
                         self.is_swinging = True
                         self.swing_start_time = pygame.time.get_ticks()
                         self.try_attack_skeletons()
+                    elif self.inventory[self.selected_slot]["type"] == "fire_scroll" and not self.is_swinging:
+                        self.is_swinging = True
+                        self.swing_start_time = pygame.time.get_ticks()
+                        self.cast_fire_spell()
                     elif self.inventory[self.selected_slot]["type"] == "health_potion":
                         self.use_health_potion()
             elif event.type == pygame.MOUSEMOTION:
@@ -1385,11 +1575,19 @@ class DungeonCrawler:
             
             # Drop 3-5 random items around the chest
             num_items = random.randint(3, 5)
-            available_items = ['health_potion', 'magic_potion']
             
             for i in range(num_items):
-                # Randomly select item type
-                item_type = random.choice(available_items)
+                # Determine item type based on rarity
+                rand = random.random() * 100  # Random number 0-100
+                
+                if rand < 20:  # 20% chance for scrolls
+                    item_type = 'fire_scroll'
+                elif rand < 50:  # 30% chance for health potions (70% total - 20% scrolls = 30% remaining)
+                    item_type = 'health_potion'
+                elif rand < 80:  # 30% chance for magic potions (60% total - 30% health = 30% remaining)
+                    item_type = 'magic_potion'
+                else:  # 20% chance for no item (empty drop)
+                    continue
                 
                 # Calculate random position around chest (within 1.5 units)
                 angle = random.uniform(0, 2 * math.pi)
@@ -1522,6 +1720,15 @@ class DungeonCrawler:
                 glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
                 glEnd()
                 glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "fire_scroll" and self.renderer.scroll_fire_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.scroll_fire_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
         # Restore OpenGL state
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -1558,11 +1765,17 @@ class DungeonCrawler:
             held_texture_id = self.renderer.potion_magic_texture_id
             held_width = 200
             held_height = held_width * (160/110)  # Potion aspect ratio
+        elif self.inventory[self.selected_slot]["type"] == "fire_scroll":
+            if not self.renderer.spell_fire_texture_id:
+                return
+            held_texture_id = self.renderer.spell_fire_texture_id
+            held_width = 200
+            held_height = held_width * (384/146)  # Spell fire aspect ratio (146x384)
         else:
             return
         swing_rotation = 0
-        # Only show swing animation for weapons, not potions
-        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword"]:
+        # Show swing animation for weapons and spells
+        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
             current_time = pygame.time.get_ticks()
             elapsed_time = current_time - self.swing_start_time
             if elapsed_time < self.swing_duration:
@@ -1587,11 +1800,14 @@ class DungeonCrawler:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glBindTexture(GL_TEXTURE_2D, held_texture_id)
         weapon_x = self.width - held_width - 20
+        # Move fire spell to the left
+        if self.inventory[self.selected_slot]["type"] == "fire_scroll":
+            weapon_x -= 50  # Move 50 pixels to the left
         weapon_y = -50
         glPushMatrix()
         glTranslatef(weapon_x + held_width/2, weapon_y + held_height/2, 0)
         # Different rotation for weapons vs potions
-        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword"]:
+        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
             glRotatef(15 + swing_rotation, 0, 0, 1)
         else:
             glRotatef(5, 0, 0, 1)  # Slight tilt for potions
@@ -1680,6 +1896,78 @@ class DungeonCrawler:
             glTexCoord2f(0, 1); glVertex2f(health_fill_x, health_fill_y + health_fill_height)
             glEnd()
             # Unbind health fill texture
+            glBindTexture(GL_TEXTURE_2D, 0)
+        # Restore OpenGL state
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        # Restore projection matrix
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+    
+    def render_mana_bar(self):
+        """Render the mana bar below the health bar"""
+        if not self.renderer.mana_bar_texture_id:
+            return
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        # Save current OpenGL state
+        glPushMatrix()
+        glLoadIdentity()
+        # Disable depth testing for 2D overlay
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        # Set up orthographic projection for 2D rendering
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, self.width, 0, self.height)
+        glMatrixMode(GL_MODELVIEW)
+        # Enable blending for transparency
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        # Bind mana bar texture
+        glBindTexture(GL_TEXTURE_2D, self.renderer.mana_bar_texture_id)
+        # Calculate mana bar position and size (below health bar)
+        mana_bar_width = 256  # Same size as health bar
+        mana_bar_height = 79  # Same size as health bar
+        mana_bar_x = 20  # Same x position as health bar
+        mana_bar_y = self.height - mana_bar_height - 20 - mana_bar_height - 10  # Below health bar with 10px gap
+        # Render mana bar quad
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0); glVertex2f(mana_bar_x, mana_bar_y)
+        glTexCoord2f(1, 0); glVertex2f(mana_bar_x + mana_bar_width, mana_bar_y)
+        glTexCoord2f(1, 1); glVertex2f(mana_bar_x + mana_bar_width, mana_bar_y + mana_bar_height)
+        glTexCoord2f(0, 1); glVertex2f(mana_bar_x, mana_bar_y + mana_bar_height)
+        glEnd()
+        # Unbind mana bar texture
+        glBindTexture(GL_TEXTURE_2D, 0)
+        # Render mana fill overlay only if mana > 0
+        if self.renderer.mana_fill_texture_id and self.current_mana > 0:
+            # Bind mana fill texture
+            glBindTexture(GL_TEXTURE_2D, self.renderer.mana_fill_texture_id)
+            # Calculate mana fill size (smaller than meter, maintaining aspect ratio)
+            mana_fill_scale = 0.8  # Make mana fill 80% of meter size
+            mana_fill_width = mana_bar_width * mana_fill_scale
+            # Calculate height based on magic.png aspect ratio (same as health.png)
+            mana_aspect_ratio = 197 / 1024  # height/width ratio (same as health.png)
+            mana_fill_height = mana_fill_width * mana_aspect_ratio
+            # Calculate mana fill position (centered within meter)
+            mana_fill_x = mana_bar_x + (mana_bar_width - mana_fill_width) / 2
+            mana_fill_y = mana_bar_y + (mana_bar_height - mana_fill_height) / 2
+            # Calculate mana fill width based on current mana percentage
+            mana_percentage = self.current_mana / self.max_mana
+            actual_mana_width = mana_fill_width * mana_percentage
+            # Render mana fill quad (smaller than meter, width based on mana)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0); glVertex2f(mana_fill_x, mana_fill_y)
+            glTexCoord2f(mana_percentage, 0); glVertex2f(mana_fill_x + actual_mana_width, mana_fill_y)
+            glTexCoord2f(mana_percentage, 1); glVertex2f(mana_fill_x + actual_mana_width, mana_fill_y + mana_fill_height)
+            glTexCoord2f(0, 1); glVertex2f(mana_fill_x, mana_fill_y + mana_fill_height)
+            glEnd()
+            # Unbind mana fill texture
             glBindTexture(GL_TEXTURE_2D, 0)
         # Restore OpenGL state
         glDisable(GL_BLEND)
@@ -1780,11 +2068,17 @@ class DungeonCrawler:
         # Render health bar
         self.render_health_bar()
         
+        # Render mana bar
+        self.render_mana_bar()
+        
         # Render skeletons
         self.renderer.render_skeletons(self.skeletons, self.camera_pos, self.camera_rot)
         
         # Render dropped items
         self.renderer.render_dropped_items(self.dropped_items, self.camera_pos)
+        
+        # Render fireballs
+        self.renderer.render_fireballs(self.fireballs, self.camera_pos)
         
         pygame.display.flip()
     
@@ -1834,6 +2128,24 @@ class DungeonCrawler:
                 # Instantly drop item if just died
                 if random.random() < 0.4:
                     self.dropped_items.append(DroppedItem('skeleton_sword', skel.center_x, skel.center_z))
+        
+        # Update fireballs and check for skeleton collisions
+        active_fireballs = []
+        for fireball in self.fireballs:
+            fireball.update()
+            
+            # Check collision with skeletons
+            for skeleton in self.skeletons:
+                if fireball.check_collision_with_skeleton(skeleton):
+                    print(f"Fireball hit skeleton! Skeleton health: {skeleton.health}")
+                    break
+            
+            # Keep only active fireballs
+            if fireball.active:
+                active_fireballs.append(fireball)
+        
+        self.fireballs = active_fireballs
+        
         # Remove dropped items after 120 seconds
         now = time.time()
         self.dropped_items = [item for item in self.dropped_items if not item.collected and (now - item.spawn_time) < 120]
@@ -1879,6 +2191,24 @@ class DungeonCrawler:
                 knockback = to_skel_norm * 0.7  # Move back 0.7 units
                 skel.take_damage(damage, knockback_vec=knockback, collision_checker=self.check_collision)
 
+    def cast_fire_spell(self):
+        """Cast a fire spell that creates a fireball projectile"""
+        # Calculate fireball spawn position (in front of player)
+        yaw = self.camera_rot[1]
+        spawn_distance = 1.0
+        spawn_x = self.camera_pos[0] + (-math.sin(yaw)) * spawn_distance
+        spawn_z = self.camera_pos[2] + (-math.cos(yaw)) * spawn_distance
+        
+        # Calculate fireball direction (same as player's forward direction)
+        direction_x = -math.sin(yaw)
+        direction_z = -math.cos(yaw)
+        
+        # Create fireball projectile
+        fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z)
+        self.fireballs.append(fireball)
+        
+        print(f"Cast fire spell! Fireball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
+
     def check_nearby_items(self):
         """Check if player is near any dropped items and update nearby_item"""
         self.nearby_item = None
@@ -1917,7 +2247,7 @@ class DungeonCrawler:
                         placed = True
                         break
         else:
-            # For non-potion items (swords, etc.), place from left to right
+            # For non-potion items (swords, scrolls, etc.), place from left to right
             for i in range(self.num_slots):
                 if self.inventory[i]["type"] == "empty":
                     self.inventory[i] = {"type": item.item_type, "count": 1}
@@ -1940,7 +2270,7 @@ class DungeonCrawler:
         drop_x = self.camera_pos[0] + (-math.sin(yaw)) * drop_distance
         drop_z = self.camera_pos[2] + (-math.cos(yaw)) * drop_distance
         # Only allow dropping known item types
-        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion"):
+        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion", "fire_scroll"):
             self.dropped_items.append(DroppedItem(item_data["type"], drop_x, drop_z))
             print(f"Dropped {item_data['type']} from slot {slot} at ({drop_x:.2f}, {drop_z:.2f})")
         # Handle stacked items
