@@ -156,6 +156,25 @@ class DungeonGenerator:
         
         print(f"Generated {len(self.rooms)} rooms, placed {len(self.chest_positions)} chests")
         
+        # 7. Place skeletons
+        self.skeletons = []
+        for room_x, room_y, room_w, room_h in self.rooms:
+            if random.random() < 0.8:  # 80% chance to spawn a skeleton in a chest room
+                skel_x = room_x + room_w // 2
+                skel_z = room_y + room_h // 2
+                if self.grid[skel_z][skel_x] == 0:
+                    center_x = skel_x + 0.5
+                    center_z = skel_z + 0.5
+                    self.skeletons.append(Skeleton(skel_x, skel_z, center_x, center_z))
+        # Random chance to spawn skeletons elsewhere
+        for z in range(1, self.height-1):
+            for x in range(1, self.width-1):
+                if self.grid[z][x] == 0 and random.random() < 0.01:
+                    center_x = x + 0.5
+                    center_z = z + 0.5
+                    self.skeletons.append(Skeleton(x, z, center_x, center_z))
+        print(f"Placed {len(self.skeletons)} skeletons")
+        
         return self.grid
 
 class DungeonRenderer:
@@ -166,7 +185,10 @@ class DungeonRenderer:
         self.torch_texture_id = None
         self.chest_texture_id = None
         self.interact_texture_id = None
-        self.slot_texture_id = None
+        self.weapon_texture_id = None
+        self.health_bar_texture_id = None
+        self.health_fill_texture_id = None
+        self.skeleton_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -183,6 +205,8 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
+            print(f"Stone texture loaded: {image.width}x{image.height}")
+            
             # Load floor texture
             floor_image = Image.open("assets/floor.png")
             floor_image = floor_image.convert("RGBA")
@@ -194,6 +218,8 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, floor_image.width, floor_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, floor_image_data)
+            print(f"Floor texture loaded: {floor_image.width}x{floor_image.height}")
+            
             # Load ceiling texture
             ceiling_image = Image.open("assets/ceiling.png")
             ceiling_image = ceiling_image.convert("RGBA")
@@ -205,6 +231,8 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ceiling_image.width, ceiling_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ceiling_image_data)
+            print(f"Ceiling texture loaded: {ceiling_image.width}x{ceiling_image.height}")
+            
             # Load torch texture (flip vertically for OpenGL)
             torch_image = Image.open("assets/torch.png")
             torch_image = torch_image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
@@ -217,6 +245,8 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, torch_image.width, torch_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, torch_image_data)
+            print(f"Torch texture loaded: {torch_image.width}x{torch_image.height}")
+            
             # Load chest texture (flip vertically for OpenGL)
             chest_image = Image.open("assets/chest.png")
             chest_image = chest_image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
@@ -229,6 +259,8 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, chest_image.width, chest_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, chest_image_data)
+            print(f"Chest texture loaded: {chest_image.width}x{chest_image.height}")
+            
             # Load interact texture
             interact_image = Image.open("assets/interact.png")
             interact_image = interact_image.convert("RGBA")
@@ -240,17 +272,64 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, interact_image.width, interact_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, interact_image_data)
-            # Load slot texture
-            slot_image = Image.open("assets/slot.png")
-            slot_image = slot_image.convert("RGBA")
-            slot_image_data = slot_image.tobytes()
-            self.slot_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.slot_texture_id)
+            print(f"Interact texture loaded: {interact_image.width}x{interact_image.height}")
+            
+            # Load weapon texture
+            weapon_image = Image.open("assets/wep_rusty.png")
+            weapon_image = weapon_image.convert("RGBA")
+            weapon_image_data = weapon_image.tobytes()
+            self.weapon_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.weapon_texture_id)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, slot_image.width, slot_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, slot_image_data)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, weapon_image.width, weapon_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, weapon_image_data)
+            print(f"Weapon texture loaded: {weapon_image.width}x{weapon_image.height}")
+            
+            # Load health bar texture
+            health_bar_image = Image.open("assets/meter.png")
+            health_bar_image = health_bar_image.convert("RGBA")
+            health_bar_image_data = health_bar_image.tobytes()
+            self.health_bar_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.health_bar_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, health_bar_image.width, health_bar_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, health_bar_image_data)
+            print(f"Health bar texture loaded: {health_bar_image.width}x{health_bar_image.height}")
+            
+            # Load health fill texture
+            health_fill_image = Image.open("assets/health.png")
+            health_fill_image = health_fill_image.convert("RGBA")
+            health_fill_image_data = health_fill_image.tobytes()
+            self.health_fill_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.health_fill_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, health_fill_image.width, health_fill_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, health_fill_image_data)
+            print(f"Health fill texture loaded: {health_fill_image.width}x{health_fill_image.height}")
+            
+            # Load skeleton texture
+            skeleton_image = Image.open("assets/skeleton.png")
+            skeleton_image = skeleton_image.convert("RGBA")
+            skeleton_image_data = skeleton_image.tobytes()
+            self.skeleton_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.skeleton_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, skeleton_image.width, skeleton_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, skeleton_image_data)
+            print(f"Skeleton texture loaded: {skeleton_image.width}x{skeleton_image.height}")
+            
+            # Unbind texture to avoid state issues
+            glBindTexture(GL_TEXTURE_2D, 0)
+            print("All textures loaded successfully")
+            print("Starter weapon 'rusty_sword' added to inventory slot 0")
         except Exception as e:
             print(f"Error loading texture: {e}")
             self.texture_id = None
@@ -259,7 +338,9 @@ class DungeonRenderer:
             self.torch_texture_id = None
             self.chest_texture_id = None
             self.interact_texture_id = None
-            self.slot_texture_id = None
+            self.weapon_texture_id = None
+            self.health_bar_texture_id = None
+            self.health_fill_texture_id = None
     
     def render_wall(self, x, z, height=2.0, camera_pos=None):
         """Render a wall segment with proper lighting"""
@@ -715,6 +796,8 @@ class DungeonRenderer:
 
     def render_dungeon(self, dungeon_grid, camera_pos=None, torch_positions=None, chest_positions=None, camera_rot=None):
         """Render the entire dungeon using spatial partitioning and batch rendering"""
+        # Set texture environment to MODULATE for world rendering
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
         # Create spatial grid if not already created
         if not hasattr(self, 'wall_chunks'):
             self.create_spatial_grid(dungeon_grid, torch_positions, chest_positions)
@@ -787,6 +870,110 @@ class DungeonRenderer:
                     if distance <= render_distance and self.is_in_frustum(center_x, center_z, camera_pos, camera_rot):
                         self.render_chest(chest_x, chest_z, center_x, center_z, camera_pos=camera_pos)
 
+    def render_skeleton(self, skeleton, camera_pos=None):
+        """Render a skeleton as a billboarded sprite, with strong additive tint for red flash/black death, and upright sprite"""
+        if not skeleton.is_alive and skeleton.death_timer <= 0:
+            return
+        glEnable(GL_BLEND)
+        # Use additive blending for red flash or black death
+        use_additive = (not skeleton.is_alive and skeleton.death_timer > 0) or (skeleton.flash_timer > 0)
+        if use_additive:
+            glBlendFunc(GL_ONE, GL_ONE)
+        else:
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        if self.skeleton_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.skeleton_texture_id)
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
+        # Set color: red flash, black if dead, else white
+        if not skeleton.is_alive and skeleton.death_timer > 0:
+            glColor4f(0.2, 0.2, 0.2, 1.0)  # Black (additive, so not pure 0)
+        elif skeleton.flash_timer > 0:
+            glColor4f(2.0, 0.1, 0.1, 1.0)  # Strong red (additive, >1.0 for more effect)
+        else:
+            glColor4f(1.0, 1.0, 1.0, 1.0)
+        glDisable(GL_LIGHTING)
+        skel_width = 0.7
+        skel_height = skel_width * (984/718)
+        if camera_pos:
+            to_player_x = camera_pos[0] - skeleton.center_x
+            to_player_z = camera_pos[2] - skeleton.center_z
+            angle = math.atan2(to_player_x, to_player_z)
+            glPushMatrix()
+            glTranslatef(skeleton.center_x, 0.1, skeleton.center_z)
+            glRotatef(angle * 180 / math.pi, 0, 1, 0)
+            glBegin(GL_QUADS)
+            glNormal3f(0, 0, 1)
+            # Flip vertically: swap v texture coordinates
+            glTexCoord2f(0, 1); glVertex3f(-skel_width/2, 0, 0)
+            glTexCoord2f(1, 1); glVertex3f(skel_width/2, 0, 0)
+            glTexCoord2f(1, 0); glVertex3f(skel_width/2, skel_height, 0)
+            glTexCoord2f(0, 0); glVertex3f(-skel_width/2, skel_height, 0)
+            glEnd()
+            glPopMatrix()
+        else:
+            glBegin(GL_QUADS)
+            glNormal3f(0, 0, 1)
+            glTexCoord2f(0, 1); glVertex3f(skeleton.center_x - skel_width/2, 0, skeleton.center_z)
+            glTexCoord2f(1, 1); glVertex3f(skeleton.center_x + skel_width/2, 0, skeleton.center_z)
+            glTexCoord2f(1, 0); glVertex3f(skeleton.center_x + skel_width/2, skel_height, skeleton.center_z)
+            glTexCoord2f(0, 0); glVertex3f(skeleton.center_x - skel_width/2, skel_height, skeleton.center_z)
+            glEnd()
+        glEnable(GL_LIGHTING)
+        glColor4f(1.0, 1.0, 1.0, 1.0)  # Reset color
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)  # Restore normal blending
+        glDisable(GL_BLEND)
+
+    def render_skeletons(self, skeletons, camera_pos=None):
+        if not skeletons:
+            return
+        for skeleton in skeletons:
+            self.render_skeleton(skeleton, camera_pos=camera_pos)
+
+class Skeleton:
+    def __init__(self, x, z, center_x, center_z, health=20):
+        self.x = x
+        self.z = z
+        self.center_x = center_x
+        self.center_z = center_z
+        self.health = health
+        self.flash_timer = 0  # Frames to flash red
+        self.is_alive = True
+        self.death_timer = 0  # Frames to show corpse (black)
+        self.attack_cooldown = 0  # Frames until next attack
+        self.frozen_timer = 0  # Frames to freeze movement after attack
+
+    def take_damage(self, amount, knockback_vec=None, collision_checker=None):
+        if not self.is_alive:
+            return
+        self.health -= amount
+        self.flash_timer = 10  # Flash red for 10 frames
+        if self.health <= 0:
+            self.is_alive = False
+            self.death_timer = 60  # 1 second at 60 FPS
+        if knockback_vec is not None:
+            new_x = self.center_x + knockback_vec[0]
+            new_z = self.center_z + knockback_vec[1]
+            if collision_checker is None or not collision_checker(new_x, new_z):
+                self.center_x = new_x
+                self.center_z = new_z
+
+    def move_toward_player(self, player_pos, collision_checker, speed=0.05):
+        if not self.is_alive:
+            return
+        dx = player_pos[0] - self.center_x
+        dz = player_pos[2] - self.center_z
+        dist = math.sqrt(dx*dx + dz*dz)
+        if dist < 1e-5:
+            return
+        move_dist = min(speed, dist)  # Don't overshoot
+        move_x = dx / dist * move_dist
+        move_z = dz / dist * move_dist
+        new_x = self.center_x + move_x
+        new_z = self.center_z + move_z
+        if not collision_checker(new_x, new_z):
+            self.center_x = new_x
+            self.center_z = new_z
+
 class DungeonCrawler:
     def __init__(self):
         pygame.init()
@@ -823,6 +1010,19 @@ class DungeonCrawler:
         self.selected_slot = 0  # Current selected slot (0-6 for 7 slots)
         self.num_slots = 7  # Total number of hotbar slots
         
+        # Inventory system
+        self.inventory = ["empty"] * self.num_slots  # Initialize with string items
+        self.inventory[0] = "rusty_sword"  # Place starter item in first slot
+        
+        # Sword swing animation variables
+        self.is_swinging = False
+        self.swing_start_time = 0
+        self.swing_duration = 500  # Animation duration in milliseconds
+        
+        # Health system
+        self.max_health = 100
+        self.current_health = 100
+        
         # Mouse control
         pygame.mouse.set_visible(False)
         pygame.event.set_grab(True)
@@ -832,6 +1032,9 @@ class DungeonCrawler:
         
         # Initialize chest proximity check
         self.check_nearby_chests()
+        
+        # Skeletons
+        self.skeletons = self.dungeon_generator.skeletons
     
     def load_background_music(self):
         """Load and start the background music"""
@@ -914,8 +1117,13 @@ class DungeonCrawler:
                 elif event.key == pygame.K_RIGHT:
                     # Navigate hotbar right
                     self.selected_slot = (self.selected_slot + 1) % self.num_slots
-            elif event.type == pygame.KEYUP:
-                pass  # Remove the key_pressed logic
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    # Check if rusty sword is equipped and start swing animation
+                    if self.inventory[self.selected_slot] == "rusty_sword" and not self.is_swinging:
+                        self.is_swinging = True
+                        self.swing_start_time = pygame.time.get_ticks()
+                        self.try_attack_skeletons()
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
@@ -1000,11 +1208,11 @@ class DungeonCrawler:
         """Render the hotbar as a 2D overlay at the bottom of the screen"""
         if not self.hotbar_texture_id:
             return
-        
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
         # Save current OpenGL state
         glPushMatrix()
         glLoadIdentity()
-        
         # Disable depth testing for 2D overlay
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
@@ -1021,8 +1229,10 @@ class DungeonCrawler:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
         # Calculate hotbar position and size
-        hotbar_width = 303  # Updated size
-        hotbar_height = 74  # Updated size
+        # Original size: 1024x189, maintaining aspect ratio
+        # Scaled down to reasonable size: 320x59 (maintaining aspect ratio)
+        hotbar_width = 320  # Scaled down from 1024
+        hotbar_height = 59   # Scaled down from 189 (maintaining aspect ratio)
         hotbar_x = 20  # Far left position
         hotbar_y = 20  # 20 pixels from bottom
         
@@ -1040,29 +1250,32 @@ class DungeonCrawler:
         # Unbind hotbar texture
         glBindTexture(GL_TEXTURE_2D, 0)
         
-        # Render slot selection indicator
-        if self.renderer.slot_texture_id:
-            # Calculate slot positions (7 slots evenly distributed across hotbar width)
-            slot_width = hotbar_width // self.num_slots  # Width of each slot
-            slot_height = hotbar_height * 0.8  # Reduced height to 80% of hotbar height
+        # Render inventory items
+        if self.renderer.weapon_texture_id:
+            # Calculate slot positions
+            slot_width = hotbar_width // self.num_slots
+            slot_height = hotbar_height * 0.8  # 80% of hotbar height
             
-            # Calculate position of selected slot
-            selected_slot_x = hotbar_x + (self.selected_slot * slot_width)
-            selected_slot_y = hotbar_y + (hotbar_height - slot_height) / 2  # Center vertically
-            
-            # Bind slot texture
-            glBindTexture(GL_TEXTURE_2D, self.renderer.slot_texture_id)
-            
-            # Render selected slot indicator
-            glBegin(GL_QUADS)
-            glTexCoord2f(0, 0); glVertex2f(selected_slot_x, selected_slot_y)
-            glTexCoord2f(1, 0); glVertex2f(selected_slot_x + slot_width, selected_slot_y)
-            glTexCoord2f(1, 1); glVertex2f(selected_slot_x + slot_width, selected_slot_y + slot_height)
-            glTexCoord2f(0, 1); glVertex2f(selected_slot_x, selected_slot_y + slot_height)
-            glEnd()
-            
-            # Unbind slot texture
-            glBindTexture(GL_TEXTURE_2D, 0)
+            # Render items in each slot
+            for i in range(self.num_slots):
+                if self.inventory[i] == "rusty_sword":
+                    # Calculate slot position
+                    slot_x = hotbar_x + (i * slot_width) + (slot_width * 0.1)  # 10% margin
+                    slot_y = hotbar_y + (hotbar_height - slot_height) / 2  # Center vertically
+                    
+                    # Bind weapon texture
+                    glBindTexture(GL_TEXTURE_2D, self.renderer.weapon_texture_id)
+                    
+                    # Draw weapon item
+                    glBegin(GL_QUADS)
+                    glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y)
+                    glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                    glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                    glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y + slot_height)
+                    glEnd()
+                    
+                    # Unbind weapon texture
+                    glBindTexture(GL_TEXTURE_2D, 0)
         
         # Restore OpenGL state
         glDisable(GL_BLEND)
@@ -1075,9 +1288,168 @@ class DungeonCrawler:
         glMatrixMode(GL_MODELVIEW)
         glPopMatrix()
 
+    def render_equipped_weapon(self):
+        """Render the equipped weapon on the right side of the screen"""
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        # Check if the selected slot has the rusty sword
+        if self.inventory[self.selected_slot] == "rusty_sword":
+            if not self.renderer.weapon_texture_id:
+                return
+            
+            # Calculate swing animation rotation
+            swing_rotation = 0
+            if self.is_swinging:
+                current_time = pygame.time.get_ticks()
+                elapsed_time = current_time - self.swing_start_time
+                if elapsed_time < self.swing_duration:
+                    # Calculate swing progress (0 to 1)
+                    progress = elapsed_time / self.swing_duration
+                    # Create a swing arc: start at 0, peak at 75 degrees, return to 0
+                    if progress < 0.5:
+                        # First half: swing to the right (0 to 75 degrees)
+                        swing_rotation = 75 * (progress * 2)
+                    else:
+                        # Second half: swing back (75 to 0 degrees)
+                        swing_rotation = 75 * (2 - progress * 2)
+                else:
+                    # Animation finished
+                    self.is_swinging = False
+                    swing_rotation = 0
+            
+            # Save current OpenGL state
+            glPushMatrix()
+            glLoadIdentity()
+            
+            # Disable depth testing for 2D overlay
+            glDisable(GL_DEPTH_TEST)
+            glDisable(GL_LIGHTING)
+            
+            # Set up orthographic projection for 2D rendering
+            glMatrixMode(GL_PROJECTION)
+            glPushMatrix()
+            glLoadIdentity()
+            gluOrtho2D(0, self.width, 0, self.height)
+            glMatrixMode(GL_MODELVIEW)
+            
+            # Enable blending for transparency
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            
+            # Bind weapon texture
+            glBindTexture(GL_TEXTURE_2D, self.renderer.weapon_texture_id)
+            
+            # Calculate weapon position (right side, positioned like holding it)
+            weapon_width = 350  # Slightly bigger size for held weapon
+            weapon_height = 525  # Maintain aspect ratio
+            weapon_x = self.width - weapon_width - 20  # 20 pixels from right edge (moved closer)
+            weapon_y = -50  # Lower position on screen (50 pixels below bottom edge)
+            
+            # Apply rotation to tilt the weapon to the right + swing animation
+            glPushMatrix()
+            glTranslatef(weapon_x + weapon_width/2, weapon_y + weapon_height/2, 0)  # Move to center
+            glRotatef(15 + swing_rotation, 0, 0, 1)  # Base rotation + swing rotation
+            glTranslatef(-(weapon_x + weapon_width/2), -(weapon_y + weapon_height/2), 0)  # Move back
+            
+            # Render weapon quad (flip vertically to fix orientation)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)  # Flip texture coordinates
+            glTexCoord2f(1, 1); glVertex2f(weapon_x + weapon_width, weapon_y)
+            glTexCoord2f(1, 0); glVertex2f(weapon_x + weapon_width, weapon_y + weapon_height)
+            glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + weapon_height)
+            glEnd()
+            
+            glPopMatrix()  # Restore matrix
+            
+            # Unbind weapon texture
+            glBindTexture(GL_TEXTURE_2D, 0)
+            
+            # Restore OpenGL state
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_LIGHTING)
+            
+            # Restore projection matrix
+            glMatrixMode(GL_PROJECTION)
+            glPopMatrix()
+            glMatrixMode(GL_MODELVIEW)
+            glPopMatrix()
+
+    def render_health_bar(self):
+        """Render the health bar at the top left of the screen"""
+        if not self.renderer.health_bar_texture_id:
+            return
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        # Save current OpenGL state
+        glPushMatrix()
+        glLoadIdentity()
+        # Disable depth testing for 2D overlay
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        # Set up orthographic projection for 2D rendering
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, self.width, 0, self.height)
+        glMatrixMode(GL_MODELVIEW)
+        # Enable blending for transparency
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        # Bind health bar texture
+        glBindTexture(GL_TEXTURE_2D, self.renderer.health_bar_texture_id)
+        # Calculate health bar position and size (top left)
+        health_bar_width = 256  # Scaled down from 1024 (1/4 size)
+        health_bar_height = 79  # Scaled down from 318 (1/4 size, maintaining aspect ratio)
+        health_bar_x = 20  # 20 pixels from left edge
+        health_bar_y = self.height - health_bar_height - 20  # 20 pixels from top
+        # Render health bar quad
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0); glVertex2f(health_bar_x, health_bar_y)
+        glTexCoord2f(1, 0); glVertex2f(health_bar_x + health_bar_width, health_bar_y)
+        glTexCoord2f(1, 1); glVertex2f(health_bar_x + health_bar_width, health_bar_y + health_bar_height)
+        glTexCoord2f(0, 1); glVertex2f(health_bar_x, health_bar_y + health_bar_height)
+        glEnd()
+        # Unbind health bar texture
+        glBindTexture(GL_TEXTURE_2D, 0)
+        # Render health fill overlay only if health > 0
+        if self.renderer.health_fill_texture_id and self.current_health > 0:
+            # Bind health fill texture
+            glBindTexture(GL_TEXTURE_2D, self.renderer.health_fill_texture_id)
+            # Calculate health fill size (smaller than meter, maintaining aspect ratio)
+            health_fill_scale = 0.8  # Make health fill 80% of meter size
+            health_fill_width = health_bar_width * health_fill_scale
+            # Calculate height based on health.png aspect ratio (1024x197)
+            health_aspect_ratio = 197 / 1024  # height/width ratio
+            health_fill_height = health_fill_width * health_aspect_ratio
+            # Calculate health fill position (centered within meter)
+            health_fill_x = health_bar_x + (health_bar_width - health_fill_width) / 2
+            health_fill_y = health_bar_y + (health_bar_height - health_fill_height) / 2
+            # Calculate health fill width based on current health percentage
+            health_percentage = self.current_health / self.max_health
+            actual_health_width = health_fill_width * health_percentage
+            # Render health fill quad (smaller than meter, width based on health)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0); glVertex2f(health_fill_x, health_fill_y)
+            glTexCoord2f(health_percentage, 0); glVertex2f(health_fill_x + actual_health_width, health_fill_y)
+            glTexCoord2f(health_percentage, 1); glVertex2f(health_fill_x + actual_health_width, health_fill_y + health_fill_height)
+            glTexCoord2f(0, 1); glVertex2f(health_fill_x, health_fill_y + health_fill_height)
+            glEnd()
+            # Unbind health fill texture
+            glBindTexture(GL_TEXTURE_2D, 0)
+        # Restore OpenGL state
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        # Restore projection matrix
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+    
     def render(self):
         """Render the scene"""
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glClear(int(GL_COLOR_BUFFER_BIT) | int(GL_DEPTH_BUFFER_BIT))
         glLoadIdentity()
         
         # Apply camera rotation and position
@@ -1158,6 +1530,15 @@ class DungeonCrawler:
         if self.nearby_chest is not None:
             self.renderer.render_interact_prompt(self.width, self.height)
         
+        # Render equipped weapon
+        self.render_equipped_weapon()
+        
+        # Render health bar
+        self.render_health_bar()
+        
+        # Render skeletons
+        self.renderer.render_skeletons(self.skeletons, self.camera_pos)
+        
         pygame.display.flip()
     
     def run(self):
@@ -1168,10 +1549,74 @@ class DungeonCrawler:
             if not self.handle_input():
                 break
             
+            self.update_skeletons()
             self.render()
             clock.tick(60)
         
         pygame.quit()
+
+    def update_skeletons(self):
+        alive = []
+        for skel in self.skeletons:
+            if skel.is_alive:
+                if skel.flash_timer > 0:
+                    skel.flash_timer -= 1
+                # Skeleton only moves if player is within activation radius and not frozen
+                dx = self.camera_pos[0] - skel.center_x
+                dz = self.camera_pos[2] - skel.center_z
+                dist = math.sqrt(dx*dx + dz*dz)
+                activation_radius = 7.0
+                min_distance = 1.7  # Minimum distance to keep from player
+                attacked = False
+                # Skeleton attack logic
+                if skel.attack_cooldown > 0:
+                    skel.attack_cooldown -= 1
+                else:
+                    if dist < 2.0:  # Attack range
+                        # Remove player knockback: only deal damage and apply cooldown/freeze
+                        self.current_health = max(0, self.current_health - 5)
+                        skel.attack_cooldown = 40  # ~0.66s at 60 FPS
+                        skel.frozen_timer = 10  # Freeze movement for 10 frames after attack
+                        attacked = True
+                # Decrement frozen_timer if active
+                if skel.frozen_timer > 0:
+                    skel.frozen_timer -= 1
+                # Only move if not attacking this frame, not frozen, and not too close
+                if not attacked and skel.frozen_timer == 0 and dist < activation_radius and dist > min_distance:
+                    skel.move_toward_player(self.camera_pos, self.check_collision, speed=0.05)
+                alive.append(skel)
+            elif skel.death_timer > 0:
+                skel.death_timer -= 1
+                alive.append(skel)
+        self.skeletons = alive
+
+    def try_attack_skeletons(self):
+        # Only attack if sword is equipped and not already swinging
+        if self.inventory[self.selected_slot] != "rusty_sword":
+            return
+        # Attack range and angle
+        attack_range = 1.8  # About 2 tiles
+        attack_angle = math.radians(60)  # 60 degree cone
+        # Player forward vector
+        yaw = self.camera_rot[1]
+        forward = np.array([-math.sin(yaw), -math.cos(yaw)])
+        for skel in self.skeletons:
+            if not skel.is_alive:
+                continue
+            # Vector from player to skeleton
+            to_skel = np.array([skel.center_x - self.camera_pos[0], skel.center_z - self.camera_pos[2]])
+            dist = np.linalg.norm(to_skel)
+            if dist > attack_range:
+                continue
+            if dist == 0:
+                continue
+            to_skel_norm = to_skel / dist
+            dot = np.dot(forward, to_skel_norm)
+            angle = math.acos(np.clip(dot, -1, 1))
+            if angle < attack_angle / 2:
+                # Hit! Apply damage and knockback
+                knockback = to_skel_norm * 0.7  # Move back 0.7 units
+                skel.take_damage(5, knockback_vec=knockback, collision_checker=self.check_collision)
 
 if __name__ == "__main__":
     game = DungeonCrawler()
