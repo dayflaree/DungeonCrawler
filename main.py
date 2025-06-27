@@ -10,112 +10,6 @@ import os
 import heapq
 import time
 
-# --- Begin moved classes ---
-
-class Skeleton:
-    def __init__(self, x, z, center_x, center_z, npc_type="skeleton"):
-        self.x = x
-        self.z = z
-        self.center_x = center_x
-        self.center_z = center_z
-        self.npc_type = npc_type
-        self.is_alive = True
-        self.flash_timer = 0
-        self.attack_cooldown = 0
-        self.frozen_timer = 0
-        if npc_type == "skeleton":
-            self.health = 20
-            self.damage = 5
-        elif npc_type == "ghoul":
-            self.health = 30
-            self.damage = 8
-        elif npc_type == "ghost":
-            self.health = 15
-            self.damage = 12
-        else:
-            self.health = 10
-            self.damage = 2
-        self.path = []
-    def update_path(self, dungeon_grid, player_tile):
-        pass  # Pathfinding logic elsewhere
-    def move_along_path(self, collision_checker, speed=0.05):
-        pass  # Movement logic elsewhere
-    def take_damage(self, amount, knockback_vec=None, collision_checker=None, hit_sound=None, death_sound=None):
-        self.health -= amount
-        self.flash_timer = 5
-        if self.health <= 0:
-            self.is_alive = False
-
-class DroppedItem:
-    def __init__(self, item_type, x, z):
-        self.item_type = item_type
-        self.x = x
-        self.z = z
-        self.collected = False
-        self.spawn_time = time.time()
-
-class Fireball:
-    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0, hit_sound=None, death_sound=None):
-        self.x = x
-        self.z = z
-        self.direction_x = direction_x
-        self.direction_z = direction_z
-        self.speed = speed
-        self.max_distance = max_distance
-        self.distance_travelled = 0.0
-        self.active = True
-        self.hit_sound = hit_sound
-        self.death_sound = death_sound
-    def update(self):
-        if not self.active:
-            return
-        self.x += self.direction_x * self.speed
-        self.z += self.direction_z * self.speed
-        self.distance_travelled += self.speed
-        if self.distance_travelled > self.max_distance:
-            self.active = False
-    def check_collision_with_skeleton(self, skeleton):
-        if not skeleton.is_alive:
-            return False
-        dist = math.sqrt((self.x - skeleton.center_x) ** 2 + (self.z - skeleton.center_z) ** 2)
-        if dist < 0.7:
-            skeleton.take_damage(20, hit_sound=self.hit_sound, death_sound=self.death_sound)
-            self.active = False
-            return True
-        return False
-
-class Magicball:
-    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0, hit_sound=None, death_sound=None):
-        self.x = x
-        self.z = z
-        self.direction_x = direction_x
-        self.direction_z = direction_z
-        self.speed = speed
-        self.max_distance = max_distance
-        self.distance_travelled = 0.0
-        self.active = True
-        self.hit_sound = hit_sound
-        self.death_sound = death_sound
-    def update(self):
-        if not self.active:
-            return
-        self.x += self.direction_x * self.speed
-        self.z += self.direction_z * self.speed
-        self.distance_travelled += self.speed
-        if self.distance_travelled > self.max_distance:
-            self.active = False
-    def check_collision_with_skeleton(self, skeleton):
-        if not skeleton.is_alive:
-            return False
-        dist = math.sqrt((self.x - skeleton.center_x) ** 2 + (self.z - skeleton.center_z) ** 2)
-        if dist < 0.7:
-            skeleton.take_damage(30, hit_sound=self.hit_sound, death_sound=self.death_sound)
-            self.active = False
-            return True
-        return False
-
-# --- End moved classes ---
-
 class DungeonGenerator:
     def __init__(self, width=51, height=51):
         self.width = width if width % 2 == 1 else width + 1
@@ -269,7 +163,7 @@ class DungeonGenerator:
         player_spawn_x, player_spawn_z = 25, 25  # Default spawn (ignore Y)
         safe_radius = 8.0
         for room_x, room_y, room_w, room_h in self.rooms:
-            if random.random() < 0.8:  # 80% chance to spawn an NPC in a chest room
+            if random.random() < 0.8:  # 80% chance to spawn a skeleton in a chest room
                 skel_x = room_x + room_w // 2
                 skel_z = room_y + room_h // 2
                 if self.grid[skel_z][skel_x] == 0:
@@ -277,16 +171,8 @@ class DungeonGenerator:
                     center_z = skel_z + 0.5
                     dist_to_player = math.sqrt((center_x - player_spawn_x)**2 + (center_z - player_spawn_z)**2)
                     if dist_to_player > safe_radius:
-                        # Randomly select NPC type
-                        npc_roll = random.random()
-                        if npc_roll < 0.3:  # 30% chance for skeleton
-                            npc_type = "skeleton"
-                        elif npc_roll < 0.9:  # 60% chance for ghoul
-                            npc_type = "ghoul"
-                        else:  # 10% chance for ghost
-                            npc_type = "ghost"
-                        self.skeletons.append(Skeleton(skel_x, skel_z, center_x, center_z, npc_type))
-        # Random chance to spawn NPCs elsewhere
+                        self.skeletons.append(Skeleton(skel_x, skel_z, center_x, center_z))
+        # Random chance to spawn skeletons elsewhere
         for z in range(1, self.height-1):
             for x in range(1, self.width-1):
                 if self.grid[z][x] == 0 and random.random() < 0.01:
@@ -294,54 +180,8 @@ class DungeonGenerator:
                     center_z = z + 0.5
                     dist_to_player = math.sqrt((center_x - player_spawn_x)**2 + (center_z - player_spawn_z)**2)
                     if dist_to_player > safe_radius:
-                        # Randomly select NPC type
-                        npc_roll = random.random()
-                        if npc_roll < 0.3:  # 30% chance for skeleton
-                            npc_type = "skeleton"
-                        elif npc_roll < 0.9:  # 60% chance for ghoul
-                            npc_type = "ghoul"
-                        else:  # 10% chance for ghost
-                            npc_type = "ghost"
-                        self.skeletons.append(Skeleton(x, z, center_x, center_z, npc_type))
-        print(f"Placed {len(self.skeletons)} NPCs")
-        
-        # 8. Place key on opposite side of map from player
-        self.key_position = None
-        player_spawn_x, player_spawn_z = 25, 25  # Default spawn (ignore Y)
-        
-        # Calculate opposite side of map
-        map_width = len(self.grid[0])
-        map_height = len(self.grid)
-        
-        # Find a valid position on the opposite side
-        attempts = 0
-        max_attempts = 100
-        while attempts < max_attempts:
-            # Try positions on the opposite side of the map
-            if player_spawn_x < map_width // 2:
-                # Player is on left side, place key on right side
-                key_x = random.randint(map_width * 3 // 4, map_width - 2)
-            else:
-                # Player is on right side, place key on left side
-                key_x = random.randint(1, map_width // 4)
-            
-            if player_spawn_z < map_height // 2:
-                # Player is on top side, place key on bottom side
-                key_z = random.randint(map_height * 3 // 4, map_height - 2)
-            else:
-                # Player is on bottom side, place key on top side
-                key_z = random.randint(1, map_height // 4)
-            
-            # Check if position is walkable
-            if self.grid[key_z][key_x] == 0:
-                self.key_position = (key_x, key_z, key_x + 0.5, key_z + 0.5)
-                print(f"Key placed at ({key_x}, {key_z}) - opposite side from player at ({player_spawn_x}, {player_spawn_z})")
-                break
-            
-            attempts += 1
-        
-        if not self.key_position:
-            print("Warning: Could not find valid position for key!")
+                        self.skeletons.append(Skeleton(x, z, center_x, center_z))
+        print(f"Placed {len(self.skeletons)} skeletons")
         
         return self.grid
 
@@ -362,17 +202,11 @@ class DungeonRenderer:
         self.mana_bar_texture_id = None
         self.mana_fill_texture_id = None
         self.skeleton_texture_id = None
-        self.ghoul_texture_id = None
-        self.ghost_texture_id = None
         self.potion_health_texture_id = None
         self.potion_magic_texture_id = None
         self.scroll_fire_texture_id = None
-        self.scroll_magic_texture_id = None
         self.spell_fire_texture_id = None
-        self.spell_magic_texture_id = None
         self.fireball_texture_id = None
-        self.magicball_texture_id = None
-        self.key_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -549,32 +383,6 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, skeleton_image.width, skeleton_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, skeleton_image_data)
             print(f"Skeleton texture loaded: {skeleton_image.width}x{skeleton_image.height}")
             
-            # Load ghoul texture
-            ghoul_image = Image.open("assets/ghoul.png")
-            ghoul_image = ghoul_image.convert("RGBA")
-            ghoul_image_data = ghoul_image.tobytes()
-            self.ghoul_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.ghoul_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ghoul_image.width, ghoul_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ghoul_image_data)
-            print(f"Ghoul texture loaded: {ghoul_image.width}x{ghoul_image.height}")
-            
-            # Load ghost texture
-            ghost_image = Image.open("assets/ghost.png")
-            ghost_image = ghost_image.convert("RGBA")
-            ghost_image_data = ghost_image.tobytes()
-            self.ghost_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.ghost_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ghost_image.width, ghost_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ghost_image_data)
-            print(f"Ghost texture loaded: {ghost_image.width}x{ghost_image.height}")
-            
             # Load skeleton sword icon
             skeleton_sword_image = Image.open("assets/wep_skeleton.png")
             skeleton_sword_image = skeleton_sword_image.convert("RGBA")
@@ -666,58 +474,6 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fireball_image.width, fireball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, fireball_image_data)
             print(f"Fireball texture loaded: {fireball_image.width}x{fireball_image.height}")
             
-            # Load magic scroll texture
-            scroll_magic_image = Image.open("assets/scroll_magic.png")
-            scroll_magic_image = scroll_magic_image.convert("RGBA")
-            scroll_magic_image_data = scroll_magic_image.tobytes()
-            self.scroll_magic_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.scroll_magic_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, scroll_magic_image.width, scroll_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scroll_magic_image_data)
-            print(f"Magic scroll texture loaded: {scroll_magic_image.width}x{scroll_magic_image.height}")
-            
-            # Load spell magic texture
-            spell_magic_image = Image.open("assets/spell_magic.png")
-            spell_magic_image = spell_magic_image.convert("RGBA")
-            spell_magic_image_data = spell_magic_image.tobytes()
-            self.spell_magic_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.spell_magic_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_magic_image.width, spell_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_magic_image_data)
-            print(f"Spell magic texture loaded: {spell_magic_image.width}x{spell_magic_image.height}")
-            
-            # Load magicball texture
-            magicball_image = Image.open("assets/magicball.png")
-            magicball_image = magicball_image.convert("RGBA")
-            magicball_image_data = magicball_image.tobytes()
-            self.magicball_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.magicball_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, magicball_image.width, magicball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, magicball_image_data)
-            print(f"Magicball texture loaded: {magicball_image.width}x{magicball_image.height}")
-            
-            # Load key texture
-            key_image = Image.open("assets/key.png")
-            key_image = key_image.convert("RGBA")
-            key_image_data = key_image.tobytes()
-            self.key_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, key_image.width, key_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, key_image_data)
-            print(f"Key texture loaded: {key_image.width}x{key_image.height}")
-            
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
             print("All textures loaded successfully")
@@ -738,12 +494,8 @@ class DungeonRenderer:
             self.potion_health_texture_id = None
             self.potion_magic_texture_id = None
             self.scroll_fire_texture_id = None
-            self.scroll_magic_texture_id = None
             self.spell_fire_texture_id = None
-            self.spell_magic_texture_id = None
             self.fireball_texture_id = None
-            self.magicball_texture_id = None
-            self.key_texture_id = None
     
     def render_wall(self, x, z, height=2.0, camera_pos=None):
         """Render a wall segment with proper lighting"""
@@ -1197,7 +949,7 @@ class DungeonRenderer:
         # Object is in frustum if dot product is greater than cosine of half FOV
         return dot_product > cos_half_fov
 
-    def render_dungeon(self, dungeon_grid, camera_pos=None, torch_positions=None, chest_positions=None, camera_rot=None, key_position=None):
+    def render_dungeon(self, dungeon_grid, camera_pos=None, torch_positions=None, chest_positions=None, camera_rot=None):
         """Render the entire dungeon using spatial partitioning and batch rendering"""
         # Set texture environment to MODULATE for world rendering
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
@@ -1272,16 +1024,6 @@ class DungeonRenderer:
                     distance = math.sqrt((center_x - camera_pos[0])**2 + (center_z - camera_pos[2])**2)
                     if distance <= render_distance and self.is_in_frustum(center_x, center_z, camera_pos, camera_rot):
                         self.render_chest(chest_x, chest_z, center_x, center_z, camera_pos=camera_pos)
-        
-        # Render key if it exists
-        if key_position:
-            key_x, key_z, center_x, center_z = key_position
-            if camera_pos and camera_rot:
-                distance = math.sqrt((center_x - camera_pos[0])**2 + (center_z - camera_pos[2])**2)
-                if distance <= 5.0 and self.is_in_frustum(center_x, center_z, camera_pos, camera_rot):
-                    self.render_key(key_x, key_z, center_x, center_z, camera_pos=camera_pos)
-            else:
-                self.render_key(key_x, key_z, center_x, center_z, camera_pos=camera_pos)
 
     def render_skeleton(self, skeleton, camera_pos=None):
         """Render a skeleton as a billboarded sprite, with strong additive tint for red flash/black death, and upright sprite"""
@@ -1293,17 +1035,8 @@ class DungeonRenderer:
             glBlendFunc(GL_ONE, GL_ONE)
         else:
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        
-        # Choose texture based on NPC type
-        if skeleton.npc_type == "skeleton" and self.skeleton_texture_id:
+        if self.skeleton_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.skeleton_texture_id)
-        elif skeleton.npc_type == "ghoul" and self.ghoul_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.ghoul_texture_id)
-        elif skeleton.npc_type == "ghost" and self.ghost_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.ghost_texture_id)
-        else:
-            return  # No valid texture found
-        
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
         # Set color: red flash or white
         if skeleton.flash_timer > 0:
@@ -1383,30 +1116,6 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, self.scroll_fire_texture_id)
             item_size = 0.4
             item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
-        elif item.item_type == 'magic_scroll' and self.scroll_magic_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.scroll_magic_texture_id)
-            item_size = 0.4
-            item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
-        elif item.item_type == 'spell_fire' and self.spell_fire_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.spell_fire_texture_id)
-            item_size = 0.4
-            item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
-        elif item.item_type == 'spell_magic' and self.spell_magic_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.spell_magic_texture_id)
-            item_size = 0.4
-            item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
-        elif item.item_type == 'fireball' and self.fireball_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
-            item_size = 0.4
-            item_height = item_size * (125/109)  # Fireball aspect ratio (109x125)
-        elif item.item_type == 'magicball' and self.magicball_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.magicball_texture_id)
-            item_size = 0.4
-            item_height = item_size * (125/109)  # Magicball aspect ratio (109x125)
-        elif item.item_type == 'key' and self.key_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
-            item_size = 0.3
-            item_height = item_size * (645/143)  # Key aspect ratio (143x645)
         else:
             return
         # Billboarded sprite
@@ -1482,108 +1191,720 @@ class DungeonRenderer:
         for fireball in fireballs:
             self.render_fireball(fireball, camera_pos)
 
-    def render_magicball(self, magicball, camera_pos=None):
-        """Render a magicball as a billboarded sprite"""
-        if not magicball.active or not self.magicball_texture_id:
+def astar(grid, start, goal):
+    """A* pathfinding for a 2D grid. Returns a list of (x, z) tiles from start to goal (inclusive), or [] if no path."""
+    width, height = len(grid[0]), len(grid)
+    def neighbors(pos):
+        x, z = pos
+        for dx, dz in [(-1,0),(1,0),(0,-1),(0,1)]:
+            nx, nz = x+dx, z+dz
+            if 0 <= nx < width and 0 <= nz < height and grid[nz][nx] == 0:
+                yield (nx, nz)
+    def heuristic(a, b):
+        return abs(a[0]-b[0]) + abs(a[1]-b[1])
+    open_set = []
+    heapq.heappush(open_set, (0 + heuristic(start, goal), 0, start, [start]))
+    visited = set()
+    while open_set:
+        est_total, cost, current, path = heapq.heappop(open_set)
+        if current == goal:
+            return path
+        if current in visited:
+            continue
+        visited.add(current)
+        for neighbor in neighbors(current):
+            if neighbor not in visited:
+                heapq.heappush(open_set, (cost+1+heuristic(neighbor, goal), cost+1, neighbor, path+[neighbor]))
+    return []
+
+class Skeleton:
+    def __init__(self, x, z, center_x, center_z, health=40):
+        self.x = x
+        self.z = z
+        self.center_x = center_x
+        self.center_z = center_z
+        self.health = health
+        self.flash_timer = 0  # Frames to flash red
+        self.is_alive = True
+        self.death_timer = 0  # Frames to show corpse (black)
+        self.attack_cooldown = 0  # Frames until next attack
+        self.frozen_timer = 0  # Frames to freeze movement after attack
+        self.path = []  # Path of (x, z) tiles to follow
+        self.path_timer = 0  # Frames until next path recalculation
+        self.last_player_tile = None
+
+    def update_path(self, grid, player_tile):
+        skel_tile = (int(self.center_x), int(self.center_z))
+        player_tile = (int(player_tile[0]), int(player_tile[1]))
+        # If skeleton is off-path, recalculate immediately
+        if self.path and self.path[0] != skel_tile:
+            self.path_timer = 0
+        if self.path_timer > 0 and self.last_player_tile == player_tile:
+            self.path_timer -= 1
+            return
+        self.last_player_tile = player_tile
+        self.path = astar(grid, skel_tile, player_tile)
+        print(f"Skeleton at {skel_tile} path to {player_tile}: {self.path}")
+        self.path_timer = 20  # Recalculate every 20 frames
+
+    def move_along_path(self, collision_checker, speed=0.05):
+        if not self.is_alive or not self.path or len(self.path) < 2:
+            return
+        skel_tile = (int(self.center_x), int(self.center_z))
+        next_tile = self.path[1]
+        if next_tile == skel_tile:
+            return  # Already at next tile, don't move
+        dx = next_tile[0] + 0.5 - self.center_x
+        dz = next_tile[1] + 0.5 - self.center_z
+        dist = math.sqrt(dx*dx + dz*dz)
+        if dist < 1e-5:
+            return
+        move_dist = min(speed, dist)
+        move_x = dx / dist * move_dist
+        move_z = dz / dist * move_dist
+        new_x = self.center_x + move_x
+        new_z = self.center_z + move_z
+        if not collision_checker(new_x, new_z):
+            self.center_x = new_x
+            self.center_z = new_z
+
+    def take_damage(self, amount, knockback_vec=None, collision_checker=None):
+        if not self.is_alive:
+            return
+        self.health -= amount
+        self.flash_timer = 10  # Flash red for 10 frames
+        if self.health <= 0:
+            self.is_alive = False
+            self.death_timer = 0  # Remove death timer, disappear instantly
+        if knockback_vec is not None:
+            new_x = self.center_x + knockback_vec[0]
+            new_z = self.center_z + knockback_vec[1]
+            if collision_checker is None or not collision_checker(new_x, new_z):
+                self.center_x = new_x
+                self.center_z = new_z
+
+    def move_toward_player(self, player_pos, collision_checker, speed=0.05):
+        if not self.is_alive:
+            return
+        dx = player_pos[0] - self.center_x
+        dz = player_pos[2] - self.center_z
+        dist = math.sqrt(dx*dx + dz*dz)
+        if dist < 1e-5:
+            return
+        move_dist = min(speed, dist)  # Don't overshoot
+        move_x = dx / dist * move_dist
+        move_z = dz / dist * move_dist
+        new_x = self.center_x + move_x
+        new_z = self.center_z + move_z
+        if not collision_checker(new_x, new_z):
+            self.center_x = new_x
+            self.center_z = new_z
+
+class DroppedItem:
+    def __init__(self, item_type, x, z):
+        self.item_type = item_type
+        self.x = x
+        self.z = z
+        self.collected = False
+        self.spawn_time = time.time()
+
+class Fireball:
+    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0):
+        self.x = x
+        self.z = z
+        self.direction_x = direction_x
+        self.direction_z = direction_z
+        self.speed = speed
+        self.max_distance = max_distance
+        self.distance_traveled = 0.0
+        self.spawn_x = x
+        self.spawn_z = z
+        self.active = True
+    
+    def update(self):
+        """Update fireball position and check if it should be destroyed"""
+        if not self.active:
             return
         
+        # Move fireball in its direction
+        self.x += self.direction_x * self.speed
+        self.z += self.direction_z * self.speed
+        
+        # Calculate distance traveled
+        dx = self.x - self.spawn_x
+        dz = self.z - self.spawn_z
+        self.distance_traveled = math.sqrt(dx*dx + dz*dz)
+        
+        # Destroy if traveled too far
+        if self.distance_traveled >= self.max_distance:
+            self.active = False
+    
+    def check_collision_with_skeleton(self, skeleton):
+        """Check if fireball hits a skeleton"""
+        if not self.active or not skeleton.is_alive:
+            return False
+        
+        # Calculate distance between fireball and skeleton
+        dx = self.x - skeleton.center_x
+        dz = self.z - skeleton.center_z
+        distance = math.sqrt(dx*dx + dz*dz)
+        
+        # Collision radius (fireball size)
+        collision_radius = 0.3
+        
+        if distance <= collision_radius:
+            # Hit! Apply damage and destroy fireball
+            skeleton.take_damage(10)  # 10 damage
+            self.active = False
+            return True
+        
+        return False
+
+class DungeonCrawler:
+    def __init__(self):
+        pygame.init()
+        pygame.mixer.init()  # Initialize the mixer for audio
+        self.width, self.height = 1200, 800
+        pygame.display.set_mode((self.width, self.height), DOUBLEBUF | OPENGL)
+        pygame.display.set_caption("3D Dungeon Crawler")
+        
+        # Camera position and rotation
+        self.camera_pos = [25, 1, 25]  # Start in the middle of the dungeon
+        self.camera_rot = [0, 0]  # [pitch, yaw] - pitch disabled
+        self.mouse_sensitivity = 0.2
+        self.move_speed = 0.1
+        
+        # Initialize dungeon
+        self.dungeon_generator = DungeonGenerator(51, 51)
+        self.dungeon_grid = self.dungeon_generator.generate_dungeon()
+        # Create collision grid as exact copy
+        self.collision_grid = [row[:] for row in self.dungeon_grid]
+        self.renderer = DungeonRenderer()
+        
+        # Load and start background music
+        self.load_background_music()
+        
+        # Initialize hotbar
+        self.hotbar_texture_id = None
+        self.load_hotbar()
+        
+        # Chest interaction variables
+        self.nearby_chest = None
+        self.interaction_distance = 2.0  # Distance to trigger interaction
+        
+        # Hotbar navigation variables
+        self.selected_slot = 0  # Current selected slot (0-6 for 7 slots)
+        self.num_slots = 7  # Total number of hotbar slots
+        
+        # Inventory system
+        self.inventory = [{"type": "empty", "count": 0}] * self.num_slots  # Initialize with dict items
+        self.inventory[0] = {"type": "rusty_sword", "count": 1}  # Place starter item in first slot
+        
+        # Sword swing animation variables
+        self.is_swinging = False
+        self.swing_start_time = 0
+        self.swing_duration = 500  # Animation duration in milliseconds
+        
+        # Health system
+        self.max_health = 100
+        self.current_health = 100
+        
+        # Mana system
+        self.max_mana = 100
+        self.current_mana = 100
+        
+        # Mouse control
+        pygame.mouse.set_visible(False)
+        pygame.event.set_grab(True)
+        
+        # Setup OpenGL
+        self.setup_gl()
+        
+        # Initialize chest proximity check
+        self.check_nearby_chests()
+        
+        # Skeletons
+        self.skeletons = self.dungeon_generator.skeletons
+        self.dropped_items = []
+        self.nearby_item = None  # Track item for interact prompt
+        
+        # Fireballs
+        self.fireballs = []
+    
+    def load_background_music(self):
+        """Load and start the background music"""
+        try:
+            pygame.mixer.music.load("assets/dungeon1.wav")
+            pygame.mixer.music.set_volume(0.5)  # Set volume to 50%
+            pygame.mixer.music.play(-1)  # -1 means loop indefinitely
+            print("Background music loaded and started")
+        except Exception as e:
+            print(f"Could not load background music: {e}")
+            print("Make sure 'dungeon1.wav' exists in the assets folder")
+    
+    def load_hotbar(self):
+        """Load the hotbar texture"""
+        try:
+            # Load hotbar texture
+            image = Image.open("assets/bar.png")
+            image = image.convert("RGBA")
+            image_data = image.tobytes()
+            self.hotbar_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.hotbar_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data)
+            print("Hotbar texture loaded successfully")
+        except Exception as e:
+            print(f"Could not load hotbar texture: {e}")
+            print("Make sure 'bar.png' exists in the assets folder")
+            self.hotbar_texture_id = None
+    
+    def setup_gl(self):
+        """Setup OpenGL environment"""
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+        glEnable(GL_TEXTURE_2D)
+        glEnable(GL_FOG)  # Enable fog
+        # glEnable(GL_CULL_FACE)  # Disable face culling for now
+        # glCullFace(GL_BACK)
+        
+        # Set up fog for atmospheric effect
+        glFogi(GL_FOG_MODE, GL_LINEAR)
+        glFogf(GL_FOG_START, 1.0)  # Start fog further back
+        glFogf(GL_FOG_END, 4.0)    # End fog at 4 units (better visibility)
+        glFogfv(GL_FOG_COLOR, [0.02, 0.02, 0.05, 1.0])  # Darker blue tint to fog
+        
+        # Set up lighting - simple uniform lighting
+        glLightfv(GL_LIGHT0, GL_POSITION, [0, 10, 0, 1])  # Light from above
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1])  # Moderate ambient lighting
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.4, 0.4, 0.4, 1])  # Moderate diffuse lighting
+        
+        # Disable all other lights for now to fix flickering
+        glDisable(GL_LIGHT1)
+        glDisable(GL_LIGHT2)
+        glDisable(GL_LIGHT3)
+        glDisable(GL_LIGHT4)
+        glDisable(GL_LIGHT5)
+        
+        # Set up perspective
+        glMatrixMode(GL_PROJECTION)
+        gluPerspective(45, self.width / self.height, 0.1, 100.0)
+        glMatrixMode(GL_MODELVIEW)
+    
+    def handle_input(self):
+        """Handle keyboard and mouse input"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
+                elif event.key == pygame.K_e and self.nearby_chest is not None:
+                    # Interact with nearby chest
+                    self.interact_with_chest()
+                elif event.key == pygame.K_e and self.nearby_item is not None:
+                    # Interact with nearby dropped item
+                    self.pick_up_item(self.nearby_item)
+                elif event.key == pygame.K_q:
+                    # Drop the selected item
+                    self.drop_selected_item()
+                elif event.key == pygame.K_LEFT:
+                    # Navigate hotbar left
+                    self.selected_slot = (self.selected_slot - 1) % self.num_slots
+                elif event.key == pygame.K_RIGHT:
+                    # Navigate hotbar right
+                    self.selected_slot = (self.selected_slot + 1) % self.num_slots
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    # Check if a sword is equipped and start swing animation
+                    if self.inventory[self.selected_slot]["type"] in ("rusty_sword", "skeleton_sword") and not self.is_swinging:
+                        self.is_swinging = True
+                        self.swing_start_time = pygame.time.get_ticks()
+                        self.try_attack_skeletons()
+                    elif self.inventory[self.selected_slot]["type"] == "fire_scroll" and not self.is_swinging:
+                        # Check if player has enough mana before starting animation
+                        if self.current_mana >= 5:
+                            self.is_swinging = True
+                            self.swing_start_time = pygame.time.get_ticks()
+                            self.cast_fire_spell()
+                        else:
+                            print("Not enough mana to cast fire spell!")
+                    elif self.inventory[self.selected_slot]["type"] == "health_potion":
+                        self.use_health_potion()
+                    elif self.inventory[self.selected_slot]["type"] == "magic_potion":
+                        self.use_magic_potion()
+            elif event.type == pygame.MOUSEMOTION:
+                self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
+                # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
+                # self.camera_rot[0] = max(-1.5, min(1.5, self.camera_rot[0]))  # Disabled pitch clamping
+        keys = pygame.key.get_pressed()
+        # Fix forward vector calculation for proper W/S movement
+        forward = [-math.sin(self.camera_rot[1]), 0, -math.cos(self.camera_rot[1])]
+        right = [math.cos(self.camera_rot[1]), 0, -math.sin(self.camera_rot[1])]
+        move = [0, 0, 0]
+        if keys[pygame.K_w]:  # W goes forward
+            move[0] += forward[0] * self.move_speed
+            move[2] += forward[2] * self.move_speed
+        if keys[pygame.K_s]:  # S goes backward
+            move[0] -= forward[0] * self.move_speed
+            move[2] -= forward[2] * self.move_speed
+        if keys[pygame.K_a]:  # A goes left
+            move[0] -= right[0] * self.move_speed
+            move[2] -= right[2] * self.move_speed
+        if keys[pygame.K_d]:  # D goes right
+            move[0] += right[0] * self.move_speed
+            move[2] += right[2] * self.move_speed
+        # Collision detection
+        new_x = self.camera_pos[0] + move[0]
+        new_z = self.camera_pos[2] + move[2]
+        if not self.check_collision(new_x, new_z):
+            self.camera_pos[0] = new_x
+            self.camera_pos[2] = new_z
+        # Check for nearby chests
+        self.check_nearby_chests()
+        # Check for nearby dropped items
+        self.check_nearby_items()
+        return True
+    
+    def interact_with_chest(self):
+        """Handle chest interaction - drop items and remove the chest from the game"""
+        if self.nearby_chest is not None:
+            print(f"Attempting to open chest: {self.nearby_chest}")
+            print(f"Current chest positions: {self.dungeon_generator.chest_positions}")
+            
+            # Get chest position for item drops
+            chest_x, chest_z, center_x, center_z = self.nearby_chest
+            
+            # Drop 3-5 random items around the chest
+            num_items = random.randint(3, 5)
+            
+            for i in range(num_items):
+                # Determine item type based on rarity
+                rand = random.random() * 100  # Random number 0-100
+                
+                if rand < 20:  # 20% chance for scrolls
+                    item_type = 'fire_scroll'
+                elif rand < 50:  # 30% chance for health potions (70% total - 20% scrolls = 30% remaining)
+                    item_type = 'health_potion'
+                elif rand < 80:  # 30% chance for magic potions (60% total - 30% health = 30% remaining)
+                    item_type = 'magic_potion'
+                else:  # 20% chance for no item (empty drop)
+                    continue
+                
+                # Calculate random position around chest (within 1.5 units)
+                angle = random.uniform(0, 2 * math.pi)
+                distance = random.uniform(0.5, 1.5)
+                drop_x = center_x + math.cos(angle) * distance
+                drop_z = center_z + math.sin(angle) * distance
+                
+                # Create dropped item
+                self.dropped_items.append(DroppedItem(item_type, drop_x, drop_z))
+                print(f"Dropped {item_type} at ({drop_x:.2f}, {drop_z:.2f})")
+            
+            # Remove the chest from the chest positions list
+            if hasattr(self.dungeon_generator, 'chest_positions'):
+                if self.nearby_chest in self.dungeon_generator.chest_positions:
+                    self.dungeon_generator.chest_positions.remove(self.nearby_chest)
+                    print(f"Chest opened and removed! Dropped {num_items} items. Remaining chests: {len(self.dungeon_generator.chest_positions)}")
+                    
+                    # Update the spatial grid to reflect the removed chest
+                    if hasattr(self.renderer, 'chest_chunks'):
+                        self.renderer.create_spatial_grid(self.dungeon_grid, self.dungeon_generator.torch_positions, self.dungeon_generator.chest_positions)
+                        print("Spatial grid updated")
+                else:
+                    print(f"Chest not found in list!")
+            
+            # Clear the nearby chest reference
+            self.nearby_chest = None
+    
+    def check_nearby_chests(self):
+        """Check if player is near any chests and update nearby_chest"""
+        self.nearby_chest = None
+        if hasattr(self.dungeon_generator, 'chest_positions'):
+            for chest_data in self.dungeon_generator.chest_positions:
+                chest_x, chest_z, center_x, center_z = chest_data
+                distance = math.sqrt((center_x - self.camera_pos[0])**2 + (center_z - self.camera_pos[2])**2)
+                if distance <= self.interaction_distance:
+                    self.nearby_chest = chest_data
+                    break
+    
+    def check_collision(self, x, z):
+        """Check if position is inside a wall"""
+        # Convert world coordinates to grid coordinates
+        grid_x = int(x)
+        grid_z = int(z)
+        
+        # Check bounds
+        if (grid_z < 0 or grid_z >= len(self.collision_grid) or 
+            grid_x < 0 or grid_x >= len(self.collision_grid[0])):
+            return True  # Out of bounds = collision
+        
+        # Check if position is a wall
+        return self.collision_grid[grid_z][grid_x] == 1
+    
+    def render_hotbar(self):
+        """Render the hotbar as a 2D overlay at the bottom of the screen"""
+        if not self.hotbar_texture_id:
+            return
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        # Save current OpenGL state
+        glPushMatrix()
+        glLoadIdentity()
+        # Disable depth testing for 2D overlay
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        # Set up orthographic projection for 2D rendering
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, self.width, 0, self.height)
+        glMatrixMode(GL_MODELVIEW)
+        # Enable blending for transparency
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glBindTexture(GL_TEXTURE_2D, self.magicball_texture_id)
-        
-        # Set material properties for magicball
-        glMaterialfv(GL_FRONT, GL_AMBIENT, [0.1, 0.4, 0.8, 1.0])
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, [0.2, 0.6, 1.0, 1.0])
-        glMaterialfv(GL_FRONT, GL_SPECULAR, [0.1, 0.2, 0.4, 1.0])
-        glMaterialf(GL_FRONT, GL_SHININESS, 15.0)
-        
-        # Magicball size and aspect ratio (109x125)
-        magicball_size = 0.4
-        magicball_height = magicball_size * (125/109)  # Magicball aspect ratio (109x125)
-        
-        # Billboarded sprite
-        y = 0.5  # Slightly higher than dropped items
-        angle = 0
-        if camera_pos:
-            to_player_x = camera_pos[0] - magicball.x
-            to_player_z = camera_pos[2] - magicball.z
-            angle = math.atan2(to_player_x, to_player_z)
-        
-        glPushMatrix()
-        glTranslatef(magicball.x, y, magicball.z)
-        glRotatef(angle * 180 / math.pi, 0, 1, 0)
-        
+        # Calculate hotbar position and size
+        hotbar_width = 320  # Scaled down from 1024
+        hotbar_height = 59   # Scaled down from 189 (maintaining aspect ratio)
+        hotbar_x = 20  # Far left position
+        hotbar_y = 20  # 20 pixels from bottom
+        # Bind hotbar texture
+        glBindTexture(GL_TEXTURE_2D, self.hotbar_texture_id)
+        # Render hotbar quad
         glBegin(GL_QUADS)
-        glNormal3f(0, 0, 1)
-        glTexCoord2f(0, 1); glVertex3f(-magicball_size/2, 0, 0)
-        glTexCoord2f(1, 1); glVertex3f(magicball_size/2, 0, 0)
-        glTexCoord2f(1, 0); glVertex3f(magicball_size/2, magicball_height, 0)
-        glTexCoord2f(0, 0); glVertex3f(-magicball_size/2, magicball_height, 0)
+        glTexCoord2f(0, 0); glVertex2f(hotbar_x, hotbar_y)
+        glTexCoord2f(1, 0); glVertex2f(hotbar_x + hotbar_width, hotbar_y)
+        glTexCoord2f(1, 1); glVertex2f(hotbar_x + hotbar_width, hotbar_y + hotbar_height)
+        glTexCoord2f(0, 1); glVertex2f(hotbar_x, hotbar_y + hotbar_height)
         glEnd()
-        
+        # Unbind hotbar texture
+        glBindTexture(GL_TEXTURE_2D, 0)
+        # Render inventory items (both rusty_sword and skeleton_sword)
+        slot_width = hotbar_width // self.num_slots
+        slot_height = hotbar_height * 0.8  # 80% of hotbar height
+        for i in range(self.num_slots):
+            slot_x = hotbar_x + (i * slot_width) + (slot_width * 0.1)  # 10% margin
+            slot_y = hotbar_y + (hotbar_height - slot_height) / 2  # Center vertically
+            item_data = self.inventory[i]
+            if item_data["type"] == "rusty_sword" and self.renderer.weapon_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.weapon_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "skeleton_sword" and self.renderer.skeleton_sword_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.skeleton_sword_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "health_potion" and self.renderer.potion_health_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.potion_health_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "magic_potion" and self.renderer.potion_magic_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.potion_magic_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "fire_scroll" and self.renderer.scroll_fire_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.scroll_fire_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+        # Restore OpenGL state
+        glDisable(GL_BLEND)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        # Restore projection matrix
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+    
+    def render_equipped_weapon(self):
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        if self.inventory[self.selected_slot]["type"] == "rusty_sword":
+            if not self.renderer.held_weapon_texture_id:
+                return
+            held_texture_id = self.renderer.held_weapon_texture_id
+            held_width = 260
+            held_height = held_width * (500/208)
+        elif self.inventory[self.selected_slot]["type"] == "skeleton_sword":
+            if not self.renderer.held_skeleton_sword_texture_id:
+                return
+            held_texture_id = self.renderer.held_skeleton_sword_texture_id
+            held_width = 260
+            held_height = held_width * (250/108)
+        elif self.inventory[self.selected_slot]["type"] == "health_potion":
+            if not self.renderer.potion_health_texture_id:
+                return
+            held_texture_id = self.renderer.potion_health_texture_id
+            held_width = 200
+            held_height = held_width * (160/110)  # Potion aspect ratio
+        elif self.inventory[self.selected_slot]["type"] == "magic_potion":
+            if not self.renderer.potion_magic_texture_id:
+                return
+            held_texture_id = self.renderer.potion_magic_texture_id
+            held_width = 200
+            held_height = held_width * (160/110)  # Potion aspect ratio
+        elif self.inventory[self.selected_slot]["type"] == "fire_scroll":
+            if not self.renderer.spell_fire_texture_id:
+                return
+            held_texture_id = self.renderer.spell_fire_texture_id
+            held_width = 200
+            held_height = held_width * (384/146)  # Spell fire aspect ratio (146x384)
+        else:
+            return
+        swing_rotation = 0
+        # Show swing animation for weapons and spells
+        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
+            current_time = pygame.time.get_ticks()
+            elapsed_time = current_time - self.swing_start_time
+            if elapsed_time < self.swing_duration:
+                progress = elapsed_time / self.swing_duration
+                if progress < 0.5:
+                    swing_rotation = 75 * (progress * 2)
+                else:
+                    swing_rotation = 75 * (2 - progress * 2)
+            else:
+                self.is_swinging = False
+                swing_rotation = 0
+        glPushMatrix()
+        glLoadIdentity()
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, self.width, 0, self.height)
+        glMatrixMode(GL_MODELVIEW)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBindTexture(GL_TEXTURE_2D, held_texture_id)
+        weapon_x = self.width - held_width - 20
+        # Move fire spell to the left
+        if self.inventory[self.selected_slot]["type"] == "fire_scroll":
+            weapon_x -= 50  # Move 50 pixels to the left
+        weapon_y = -50
+        glPushMatrix()
+        glTranslatef(weapon_x + held_width/2, weapon_y + held_height/2, 0)
+        # Different rotation for weapons vs potions
+        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
+            glRotatef(15 + swing_rotation, 0, 0, 1)
+        else:
+            glRotatef(5, 0, 0, 1)  # Slight tilt for potions
+        glTranslatef(-(weapon_x + held_width/2), -(weapon_y + held_height/2), 0)
+        glBegin(GL_QUADS)
+        # Flip texture coordinates for potions to show right-side up
+        if self.inventory[self.selected_slot]["type"] in ["health_potion", "magic_potion"]:
+            glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)
+            glTexCoord2f(1, 1); glVertex2f(weapon_x + held_width, weapon_y)
+            glTexCoord2f(1, 0); glVertex2f(weapon_x + held_width, weapon_y + held_height)
+            glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + held_height)
+        else:
+            glTexCoord2f(0, 1); glVertex2f(weapon_x, weapon_y)
+            glTexCoord2f(1, 1); glVertex2f(weapon_x + held_width, weapon_y)
+            glTexCoord2f(1, 0); glVertex2f(weapon_x + held_width, weapon_y + held_height)
+            glTexCoord2f(0, 0); glVertex2f(weapon_x, weapon_y + held_height)
+        glEnd()
         glPopMatrix()
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_BLEND)
-
-    def render_magicballs(self, magicballs, camera_pos=None):
-        """Render all active magicballs"""
-        for magicball in magicballs:
-            self.render_magicball(magicball, camera_pos)
-
-    def render_key(self, x, z, center_x, center_z, height=0.1, camera_pos=None):
-        """Render a key with billboarding (always facing the player)"""
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_LIGHTING)
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        glPopMatrix()
+    
+    def render_health_bar(self):
+        """Render the health bar at the top left of the screen"""
+        if not self.renderer.health_bar_texture_id:
+            return
+        # Set texture environment to REPLACE for UI
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
+        # Save current OpenGL state
+        glPushMatrix()
+        glLoadIdentity()
+        # Disable depth testing for 2D overlay
+        glDisable(GL_DEPTH_TEST)
+        glDisable(GL_LIGHTING)
+        # Set up orthographic projection for 2D rendering
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, self.width, 0, self.height)
+        glMatrixMode(GL_MODELVIEW)
+        # Enable blending for transparency
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        if self.key_texture_id:
-            glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
-        
-        # Set material properties for key
-        glMaterialfv(GL_FRONT, GL_AMBIENT, [0.6, 0.5, 0.2, 1.0])
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, [1.0, 0.8, 0.3, 1.0])
-        glMaterialfv(GL_FRONT, GL_SPECULAR, [0.2, 0.2, 0.1, 1.0])
-        glMaterialf(GL_FRONT, GL_SHININESS, 20.0)
-        
-        key_size = 0.3
-        
-        # Calculate angle to player for billboarding
-        if camera_pos:
-            # Calculate direction from key to player
-            to_player_x = camera_pos[0] - center_x
-            to_player_z = camera_pos[2] - center_z
-            
-            # Calculate angle to face player
-            angle = math.atan2(to_player_x, to_player_z)
-            
-            # Apply rotation to face player
-            glPushMatrix()
-            glTranslatef(center_x, height, center_z)
-            glRotatef(angle * 180 / math.pi, 0, 1, 0)
-            
-            # Render billboarded key quad
+        # Bind health bar texture
+        glBindTexture(GL_TEXTURE_2D, self.renderer.health_bar_texture_id)
+        # Calculate health bar position and size (top left)
+        health_bar_width = 256  # Scaled down from 1024 (1/4 size)
+        health_bar_height = 79  # Scaled down from 318 (1/4 size, maintaining aspect ratio)
+        health_bar_x = 20  # 20 pixels from left edge
+        health_bar_y = self.height - health_bar_height - 20  # 20 pixels from top
+        # Render health bar quad
+        glBegin(GL_QUADS)
+        glTexCoord2f(0, 0); glVertex2f(health_bar_x, health_bar_y)
+        glTexCoord2f(1, 0); glVertex2f(health_bar_x + health_bar_width, health_bar_y)
+        glTexCoord2f(1, 1); glVertex2f(health_bar_x + health_bar_width, health_bar_y + health_bar_height)
+        glTexCoord2f(0, 1); glVertex2f(health_bar_x, health_bar_y + health_bar_height)
+        glEnd()
+        # Unbind health bar texture
+        glBindTexture(GL_TEXTURE_2D, 0)
+        # Render health fill overlay only if health > 0
+        if self.renderer.health_fill_texture_id and self.current_health > 0:
+            # Bind health fill texture
+            glBindTexture(GL_TEXTURE_2D, self.renderer.health_fill_texture_id)
+            # Calculate health fill size (smaller than meter, maintaining aspect ratio)
+            health_fill_scale = 0.8  # Make health fill 80% of meter size
+            health_fill_width = health_bar_width * health_fill_scale
+            # Calculate height based on health.png aspect ratio (1024x197)
+            health_aspect_ratio = 197 / 1024  # height/width ratio
+            health_fill_height = health_fill_width * health_aspect_ratio
+            # Calculate health fill position (centered within meter)
+            health_fill_x = health_bar_x + (health_bar_width - health_fill_width) / 2
+            health_fill_y = health_bar_y + (health_bar_height - health_fill_height) / 2
+            # Calculate health fill width based on current health percentage
+            health_percentage = self.current_health / self.max_health
+            actual_health_width = health_fill_width * health_percentage
+            # Render health fill quad (smaller than meter, width based on health)
             glBegin(GL_QUADS)
-            glNormal3f(0, 0, 1)  # Always face forward
-            glTexCoord2f(0, 0); glVertex3f(-key_size/2, 0, 0)
-            glTexCoord2f(1, 0); glVertex3f(key_size/2, 0, 0)
-            glTexCoord2f(1, 1); glVertex3f(key_size/2, key_size, 0)
-            glTexCoord2f(0, 1); glVertex3f(-key_size/2, key_size, 0)
+            glTexCoord2f(0, 0); glVertex2f(health_fill_x, health_fill_y)
+            glTexCoord2f(health_percentage, 0); glVertex2f(health_fill_x + actual_health_width, health_fill_y)
+            glTexCoord2f(health_percentage, 1); glVertex2f(health_fill_x + actual_health_width, health_fill_y + health_fill_height)
+            glTexCoord2f(0, 1); glVertex2f(health_fill_x, health_fill_y + health_fill_height)
             glEnd()
-            
-            glPopMatrix()
-        else:
-            # Fallback to simple quad if no camera position
-            glBegin(GL_QUADS)
-            glNormal3f(0, 0, 1)
-            glTexCoord2f(0, 0); glVertex3f(center_x - key_size/2, height, center_z)
-            glTexCoord2f(1, 0); glVertex3f(center_x + key_size/2, height, center_z)
-            glTexCoord2f(1, 1); glVertex3f(center_x + key_size/2, height + key_size, center_z)
-            glTexCoord2f(0, 1); glVertex3f(center_x - key_size/2, height + key_size, center_z)
-            glEnd()
-        
-        if self.key_texture_id:
+            # Unbind health fill texture
             glBindTexture(GL_TEXTURE_2D, 0)
+        # Restore OpenGL state
         glDisable(GL_BLEND)
-
-def astar(grid, start, goal):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
         # Restore projection matrix
@@ -1738,7 +2059,7 @@ def astar(grid, start, goal):
             glDisable(GL_LIGHT5)
         
         # Render dungeon
-        self.renderer.render_dungeon(self.dungeon_grid, self.camera_pos, self.dungeon_generator.torch_positions, self.dungeon_generator.chest_positions, self.camera_rot, self.key_position)
+        self.renderer.render_dungeon(self.dungeon_grid, self.camera_pos, self.dungeon_generator.torch_positions, self.dungeon_generator.chest_positions, self.camera_rot)
         
         # Render hotbar
         self.render_hotbar()
@@ -1764,9 +2085,6 @@ def astar(grid, start, goal):
         
         # Render fireballs
         self.renderer.render_fireballs(self.fireballs, self.camera_pos)
-        
-        # Render magicballs
-        self.renderer.render_magicballs(self.magicballs, self.camera_pos)
         
         pygame.display.flip()
     
@@ -1801,14 +2119,7 @@ def astar(grid, start, goal):
                     skel.attack_cooldown -= 1
                 else:
                     if dist < 2.0:
-                        self.current_health = max(0, self.current_health - skel.damage)
-                        # Play hit sound when player takes damage
-                        if self.hit_sound:
-                            print("Playing hit sound - player took damage!")
-                            self.hit_sound.play()
-                            print("Player damage sound effect triggered")
-                        else:
-                            print("WARNING: hit_sound is None - cannot play player damage sound!")
+                        self.current_health = max(0, self.current_health - 5)
                         skel.attack_cooldown = 40
                         skel.frozen_timer = 10
                         attacked = True
@@ -1820,11 +2131,9 @@ def astar(grid, start, goal):
                     skel.move_along_path(self.check_collision, speed=0.05)
                 alive.append(skel)
             else:
-                # Instantly drop item if just died (only skeletons drop skeleton swords, ghosts drop magic scrolls)
-                if skel.npc_type == "skeleton" and random.random() < 0.4:
+                # Instantly drop item if just died
+                if random.random() < 0.4:
                     self.dropped_items.append(DroppedItem('skeleton_sword', skel.center_x, skel.center_z))
-                elif skel.npc_type == "ghost" and random.random() < 0.2:  # 20% chance
-                    self.dropped_items.append(DroppedItem('magic_scroll', skel.center_x, skel.center_z))
         
         # Update fireballs and check for skeleton collisions
         active_fireballs = []
@@ -1843,26 +2152,9 @@ def astar(grid, start, goal):
         
         self.fireballs = active_fireballs
         
-        # Update magicballs and check for skeleton collisions
-        active_magicballs = []
-        for magicball in self.magicballs:
-            magicball.update()
-            
-            # Check collision with skeletons
-            for skeleton in self.skeletons:
-                if magicball.check_collision_with_skeleton(skeleton):
-                    print(f"Magicball hit skeleton! Skeleton health: {skeleton.health}")
-                    break
-            
-            # Keep only active magicballs
-            if magicball.active:
-                active_magicballs.append(magicball)
-        
-        self.magicballs = active_magicballs
-        
-        # Remove dropped items after 120 seconds, but never delete the key
+        # Remove dropped items after 120 seconds
         now = time.time()
-        self.dropped_items = [item for item in self.dropped_items if (item.item_type == 'key') or (not item.collected and (now - item.spawn_time) < 120)]
+        self.dropped_items = [item for item in self.dropped_items if not item.collected and (now - item.spawn_time) < 120]
         self.skeletons = alive
         self.check_item_pickup()
 
@@ -1903,7 +2195,7 @@ def astar(grid, start, goal):
             if angle < attack_angle / 2:
                 # Hit! Apply damage and knockback
                 knockback = to_skel_norm * 0.7  # Move back 0.7 units
-                skel.take_damage(damage, knockback_vec=knockback, collision_checker=self.check_collision, hit_sound=self.hit_npc_sound, death_sound=self.death_sound)
+                skel.take_damage(damage, knockback_vec=knockback, collision_checker=self.check_collision)
 
     def cast_fire_spell(self):
         """Cast a fire spell that creates a fireball projectile"""
@@ -1916,14 +2208,6 @@ def astar(grid, start, goal):
         self.current_mana -= 5
         print(f"Cast fire spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
         
-        # Play spell sound effect
-        if self.spell_sound:
-            print("Playing spell sound effect...")
-            self.spell_sound.play()
-            print("Spell sound effect triggered")
-        else:
-            print("WARNING: spell_sound is None - cannot play spell sound!")
-        
         # Calculate fireball spawn position (in front of player)
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
@@ -1935,45 +2219,10 @@ def astar(grid, start, goal):
         direction_z = -math.cos(yaw)
         
         # Create fireball projectile
-        fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z, hit_sound=self.hit_npc_sound, death_sound=self.death_sound)
+        fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z)
         self.fireballs.append(fireball)
         
         print(f"Fireball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
-
-    def cast_magic_spell(self):
-        """Cast a magic spell that creates a magicball projectile"""
-        # Check if player has enough mana
-        if self.current_mana < 10:
-            print("Not enough mana to cast magic spell!")
-            return
-        
-        # Consume mana
-        self.current_mana -= 10
-        print(f"Cast magic spell! Consumed 10 mana. Current mana: {self.current_mana}/{self.max_mana}")
-        
-        # Play spell sound effect
-        if self.spell_sound:
-            print("Playing spell sound effect...")
-            self.spell_sound.play()
-            print("Spell sound effect triggered")
-        else:
-            print("WARNING: spell_sound is None - cannot play spell sound!")
-        
-        # Calculate magicball spawn position (in front of player)
-        yaw = self.camera_rot[1]
-        spawn_distance = 1.0
-        spawn_x = self.camera_pos[0] + (-math.sin(yaw)) * spawn_distance
-        spawn_z = self.camera_pos[2] + (-math.cos(yaw)) * spawn_distance
-        
-        # Calculate magicball direction (same as player's forward direction)
-        direction_x = -math.sin(yaw)
-        direction_z = -math.cos(yaw)
-        
-        # Create magicball projectile
-        magicball = Magicball(spawn_x, spawn_z, direction_x, direction_z, hit_sound=self.hit_npc_sound, death_sound=self.death_sound)
-        self.magicballs.append(magicball)
-        
-        print(f"Magicball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
 
     def check_nearby_items(self):
         """Check if player is near any dropped items and update nearby_item"""
@@ -2036,7 +2285,7 @@ def astar(grid, start, goal):
         drop_x = self.camera_pos[0] + (-math.sin(yaw)) * drop_distance
         drop_z = self.camera_pos[2] + (-math.cos(yaw)) * drop_distance
         # Only allow dropping known item types
-        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion", "fire_scroll", "magic_scroll", "spell_fire", "spell_magic", "fireball", "magicball", "key"):
+        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion", "fire_scroll"):
             self.dropped_items.append(DroppedItem(item_data["type"], drop_x, drop_z))
             print(f"Dropped {item_data['type']} from slot {slot} at ({drop_x:.2f}, {drop_z:.2f})")
         # Handle stacked items
