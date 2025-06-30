@@ -1491,9 +1491,14 @@ class DungeonCrawler:
         """Load and start the background music"""
         try:
             pygame.mixer.music.load("assets/dungeon1.wav")
-            pygame.mixer.music.set_volume(0.5)  # Set volume to 50%
+            pygame.mixer.music.set_volume(0.3)  # Set volume to 30% before playing
             pygame.mixer.music.play(-1)  # -1 means loop indefinitely
-            print("Background music loaded and started")
+            pygame.mixer.music.set_volume(0.3)  # Set volume to 30% after playing (in case it is reset)
+            # Also set the volume on the default channel to 30%
+            pygame.mixer.Channel(0).set_volume(0.3)
+            # Debug: If still not quiet, set to 0.05 (almost mute)
+            # pygame.mixer.music.set_volume(0.05)
+            print("Background music loaded and started (volume forced to 30%)")
         except Exception as e:
             print(f"Could not load background music: {e}")
             print("Make sure 'dungeon1.wav' exists in the assets folder")
