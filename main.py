@@ -15,6 +15,11 @@ class DungeonGenerator:
         self.width = width if width % 2 == 1 else width + 1
         self.height = height if height % 2 == 1 else height + 1
         self.grid = [[1 for _ in range(self.width)] for _ in range(self.height)]
+        # Initialize attributes that will be set in generate_dungeon
+        self.rooms = []
+        self.torch_positions = []
+        self.chest_positions = []
+        self.skeletons = []
 
     def generate_dungeon(self):
         # 1. Start with a grid of walls
@@ -550,8 +555,9 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, magicball_image.width, magicball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, magicball_image_data)
             print(f"Magicball texture loaded: {magicball_image.width}x{magicball_image.height}")
 
-            # Load key texture
+            # Load key texture (flip vertically for OpenGL)
             key_image = Image.open("assets/key.png")
+            key_image = key_image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
             key_image = key_image.convert("RGBA")
             key_image_data = key_image.tobytes()
             self.key_texture_id = glGenTextures(1)
@@ -562,7 +568,7 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, key_image.width, key_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, key_image_data)
             print(f"Key texture loaded: {key_image.width}x{key_image.height}")
-        except Exception as e:
+        except (OSError, IOError) as e:
             print(f"Error loading texture: {e}")
             self.texture_id = None
             self.floor_texture_id = None
@@ -580,8 +586,9 @@ class DungeonRenderer:
             self.scroll_fire_texture_id = None
             self.spell_fire_texture_id = None
             self.fireball_texture_id = None
+            self.key_texture_id = None
     
-    def render_wall(self, x, z, height=2.0, camera_pos=None):
+    def render_wall(self, x, z, height=2.0, _camera_pos=None):
         """Render a wall segment with proper lighting"""
         # Set material properties for walls
         glMaterialfv(GL_FRONT, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
@@ -633,7 +640,7 @@ class DungeonRenderer:
         if self.texture_id:
             glBindTexture(GL_TEXTURE_2D, 0)
     
-    def render_floor(self, x, z, camera_pos=None):
+    def render_floor(self, x, z, _camera_pos=None):
         """Render a floor segment"""
         # Set material properties for floors
         glMaterialfv(GL_FRONT, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
@@ -655,7 +662,7 @@ class DungeonRenderer:
         if self.floor_texture_id:
             glBindTexture(GL_TEXTURE_2D, 0)
     
-    def render_ceiling(self, x, z, height=2.0, camera_pos=None):
+    def render_ceiling(self, x, z, height=2.0, _camera_pos=None):
         """Render a ceiling segment"""
         # Set material properties for ceilings
         glMaterialfv(GL_FRONT, GL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
@@ -675,7 +682,7 @@ class DungeonRenderer:
         if self.ceiling_texture_id:
             glBindTexture(GL_TEXTURE_2D, 0)
     
-    def render_torch(self, x, z, dx, dz, face_x, face_z, height=1.5, camera_pos=None):
+    def render_torch(self, _x, _z, dx, dz, face_x, face_z, height=1.5, camera_pos=None):
         """Render a torch on the correct face of the wall with blending enabled and billboarding"""
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -747,7 +754,7 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_BLEND)
     
-    def render_chest(self, x, z, center_x, center_z, height=0.1, camera_pos=None):
+    def render_chest(self, _x, _z, center_x, center_z, height=0.1, camera_pos=None):
         """Render a chest with billboarding (always facing the player)"""
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -1087,7 +1094,7 @@ class DungeonRenderer:
         # Render all ceilings (always visible)
         for z in range(len(dungeon_grid)):
             for x in range(len(dungeon_grid[0])):
-                self.render_ceiling(x, z, camera_pos=camera_pos)
+                self.render_ceiling(x, z, _camera_pos=camera_pos)
         
         # Render torches only from nearby chunks
         if camera_pos and camera_rot and nearby_chunks:
@@ -1215,6 +1222,8 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
             item_size = 0.18  # Small-ish
             item_height = item_size * (670/344)  # Key aspect ratio
+        elif item.item_type == 'key':
+            return
         else:
             return
         # Billboarded sprite
@@ -1240,10 +1249,7 @@ class DungeonRenderer:
 
     def render_dropped_items(self, dropped_items, camera_pos=None):
         for item in dropped_items:
-            self.renderer.render_dropped_item(item, camera_pos)
-        # Always render the key if it exists and hasn't been picked up
-        if hasattr(self, 'key_item') and self.key_item and not self.key_item.collected:
-            self.renderer.render_dropped_item(self.key_item, camera_pos)
+            self.render_dropped_item(item, camera_pos)
 
     def render_fireball(self, fireball, camera_pos=None):
         """Render a fireball as a billboarded sprite"""
@@ -1492,17 +1498,18 @@ class DungeonCrawler:
         pygame.display.set_mode((self.width, self.height), DOUBLEBUF | OPENGL)
         pygame.display.set_caption("3D Dungeon Crawler")
         
-        # Camera position and rotation
-        self.camera_pos = [25, 1, 25]  # Start in the middle of the dungeon
-        self.camera_rot = [0, 0]  # [pitch, yaw] - pitch disabled
-        self.mouse_sensitivity = 0.2
-        self.move_speed = 0.1
-        
         # Initialize dungeon
         self.dungeon_generator = DungeonGenerator(51, 51)
         self.dungeon_grid = self.dungeon_generator.generate_dungeon()
         # Create collision grid as exact copy
         self.collision_grid = [row[:] for row in self.dungeon_grid]
+        
+        # Find a valid spawn position for the player
+        spawn_pos = self.find_valid_spawn_position()
+        self.camera_pos = [spawn_pos[0], 1, spawn_pos[1]]
+        self.camera_rot = [0, 0]  # [pitch, yaw] - pitch disabled
+        self.mouse_sensitivity = 0.2
+        self.move_speed = 0.1
         self.renderer = DungeonRenderer()
         
         # Load and start background music
@@ -1554,6 +1561,9 @@ class DungeonCrawler:
         
         # Fireballs
         self.fireballs = []
+
+        # Spawn the key at the farthest location from the player
+        self.spawn_key_item()
     
     def load_background_music(self):
         """Load and start the background music"""
@@ -1872,6 +1882,15 @@ class DungeonCrawler:
                 glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
                 glEnd()
                 glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "key" and hasattr(self.renderer, 'key_texture_id') and self.renderer.key_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.key_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
         # Restore OpenGL state
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
@@ -1920,11 +1939,17 @@ class DungeonCrawler:
             held_texture_id = self.renderer.spell_magic_texture_id
             held_width = 200
             held_height = held_width * (384/146)  # Spell magic aspect ratio (146x384)
+        elif self.inventory[self.selected_slot]["type"] == "key":
+            if not hasattr(self.renderer, 'key_texture_id') or not self.renderer.key_texture_id:
+                return
+            held_texture_id = self.renderer.key_texture_id
+            held_width = 150
+            held_height = held_width * (670/344)  # Key aspect ratio
         else:
             return
         swing_rotation = 0
         # Show swing animation for weapons and spells
-        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll", "magic_scroll"]:
+        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll", "magic_scroll", "key"]:
             current_time = pygame.time.get_ticks()
             elapsed_time = current_time - self.swing_start_time
             if elapsed_time < self.swing_duration:
@@ -1958,7 +1983,7 @@ class DungeonCrawler:
         glPushMatrix()
         glTranslatef(weapon_x + held_width/2, weapon_y + held_height/2, 0)
         # Different rotation for weapons vs potions
-        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
+        if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll", "key"]:
             glRotatef(15 + swing_rotation, 0, 0, 1)
         elif self.inventory[self.selected_slot]["type"] == "magic_scroll":
             glRotatef(15 + swing_rotation, 0, 0, 1)
@@ -2208,6 +2233,20 @@ class DungeonCrawler:
         # Render dungeon
         self.renderer.render_dungeon(self.dungeon_grid, self.camera_pos, self.dungeon_generator.torch_positions, self.dungeon_generator.chest_positions, self.camera_rot)
         
+        # Render skeletons
+        self.renderer.render_npcs(self.skeletons, self.camera_pos, self.camera_rot)
+        
+        # Render dropped items
+        self.renderer.render_dropped_items(self.dropped_items, self.camera_pos)
+        
+        # Render fireballs
+        self.renderer.render_fireballs(self.fireballs, self.camera_pos)
+        
+        # Always render the key if it exists and hasn't been picked up
+        if hasattr(self, 'key_item') and self.key_item and not self.key_item.collected:
+            self.renderer.render_dropped_item(self.key_item, self.camera_pos)
+        
+        # Render all UI elements last (on top of everything)
         # Render hotbar
         self.render_hotbar()
         
@@ -2223,15 +2262,6 @@ class DungeonCrawler:
         
         # Render mana bar
         self.render_mana_bar()
-        
-        # Render skeletons
-        self.renderer.render_npcs(self.skeletons, self.camera_pos, self.camera_rot)
-        
-        # Render dropped items
-        self.renderer.render_dropped_items(self.dropped_items, self.camera_pos)
-        
-        # Render fireballs
-        self.renderer.render_fireballs(self.fireballs, self.camera_pos)
         
         pygame.display.flip()
     
@@ -2381,6 +2411,8 @@ class DungeonCrawler:
         """Check if player is near any dropped items and update nearby_item"""
         self.nearby_item = None
         min_dist = float('inf')
+        
+        # Check regular dropped items
         for item in self.dropped_items:
             if item.collected:
                 continue
@@ -2388,11 +2420,33 @@ class DungeonCrawler:
             if dist < 1.0 and dist < min_dist:
                 self.nearby_item = item
                 min_dist = dist
+        
+        # Check key item
+        if hasattr(self, 'key_item') and self.key_item and not self.key_item.collected:
+            dist = math.sqrt((self.key_item.x - self.camera_pos[0])**2 + (self.key_item.z - self.camera_pos[2])**2)
+            if dist < 1.0 and dist < min_dist:
+                self.nearby_item = self.key_item
+                min_dist = dist
 
     def pick_up_item(self, item):
         if item.collected:
             return
         placed = False
+        
+        # Handle key item specially - add to inventory
+        if item.item_type == 'key':
+            for i in range(self.num_slots):
+                if self.inventory[i]["type"] == "empty":
+                    self.inventory[i] = {"type": item.item_type, "count": 1}
+                    item.collected = True
+                    placed = True
+                    print('Key picked up!')
+                    break
+            if not placed:
+                print('Inventory full! Cannot pick up key.')
+            return
+        
+        # Handle other items
         if item.item_type in ["health_potion", "magic_potion"]:
             for i in range(self.num_slots):
                 if (self.inventory[i]["type"] == item.item_type and 
@@ -2416,11 +2470,7 @@ class DungeonCrawler:
                     placed = True
                     break
         if not placed:
-            pass
-        if item.item_type == 'key':
-            item.collected = True
-            print('Key picked up!')
-            return
+            print('Inventory full! Cannot pick up item.')
 
     def drop_selected_item(self):
         """Drop the selected item in front of the player and shift items left to fill the gap."""
@@ -2434,7 +2484,7 @@ class DungeonCrawler:
         drop_x = self.camera_pos[0] + (-math.sin(yaw)) * drop_distance
         drop_z = self.camera_pos[2] + (-math.cos(yaw)) * drop_distance
         # Only allow dropping known item types
-        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion", "fire_scroll"):
+        if item_data["type"] in ("rusty_sword", "skeleton_sword", "health_potion", "magic_potion", "fire_scroll", "key"):
             self.dropped_items.append(DroppedItem(item_data["type"], drop_x, drop_z))
             print(f"Dropped {item_data['type']} from slot {slot} at ({drop_x:.2f}, {drop_z:.2f})")
         # Handle stacked items
@@ -2525,6 +2575,38 @@ class DungeonCrawler:
         self.fireballs.append(magicball)
         print(f"Magicball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
 
+    def find_valid_spawn_position(self):
+        """Find a valid spawn position for the player (walkable tile near center)"""
+        center_x, center_z = len(self.dungeon_grid[0]) // 2, len(self.dungeon_grid) // 2
+        
+        # Start from center and search in expanding circles
+        for radius in range(0, max(len(self.dungeon_grid), len(self.dungeon_grid[0]))):
+            for dx in range(-radius, radius + 1):
+                for dz in range(-radius, radius + 1):
+                    # Only check positions at the current radius
+                    if abs(dx) == radius or abs(dz) == radius:
+                        x, z = center_x + dx, center_z + dz
+                        # Check bounds
+                        if 0 <= x < len(self.dungeon_grid[0]) and 0 <= z < len(self.dungeon_grid):
+                            if self.dungeon_grid[z][x] == 0:  # Walkable
+                                spawn_x = x + 0.5
+                                spawn_z = z + 0.5
+                                print(f"Player spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
+                                return (spawn_x, spawn_z)
+        
+        # Fallback: find any walkable tile
+        for z in range(len(self.dungeon_grid)):
+            for x in range(len(self.dungeon_grid[0])):
+                if self.dungeon_grid[z][x] == 0:  # Walkable
+                    spawn_x = x + 0.5
+                    spawn_z = z + 0.5
+                    print(f"Player spawned at fallback position ({spawn_x:.2f}, {spawn_z:.2f})")
+                    return (spawn_x, spawn_z)
+        
+        # Last resort: spawn at center
+        print("Warning: No walkable tiles found, spawning at center")
+        return (center_x + 0.5, center_z + 0.5)
+
     def spawn_key_item(self):
         # Find the farthest walkable tile from the player
         max_dist = -1
@@ -2540,6 +2622,9 @@ class DungeonCrawler:
         if farthest_pos:
             self.key_item = DroppedItem('key', farthest_pos[0], farthest_pos[1])
             self.key_spawned = True
+            print(f"Key spawned at ({farthest_pos[0]:.2f}, {farthest_pos[1]:.2f})")
+        else:
+            print("Failed to spawn key - no walkable tiles found!")
 
 if __name__ == "__main__":
     game = DungeonCrawler()
