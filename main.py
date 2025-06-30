@@ -225,6 +225,7 @@ class DungeonRenderer:
         self.spell_magic_texture_id = None  # Add this line
         self.fireball_texture_id = None
         self.magicball_texture_id = None  # Add this line
+        self.key_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -548,6 +549,19 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, magicball_image.width, magicball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, magicball_image_data)
             print(f"Magicball texture loaded: {magicball_image.width}x{magicball_image.height}")
+
+            # Load key texture
+            key_image = Image.open("assets/key.png")
+            key_image = key_image.convert("RGBA")
+            key_image_data = key_image.tobytes()
+            self.key_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, key_image.width, key_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, key_image_data)
+            print(f"Key texture loaded: {key_image.width}x{key_image.height}")
         except Exception as e:
             print(f"Error loading texture: {e}")
             self.texture_id = None
@@ -1197,6 +1211,10 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, self.scroll_magic_texture_id)
             item_size = 0.4
             item_height = item_size * (125/111)  # Same aspect ratio as fire scroll
+        elif item.item_type == 'key' and hasattr(self, 'key_texture_id') and self.key_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.key_texture_id)
+            item_size = 0.18  # Small-ish
+            item_height = item_size * (670/344)  # Key aspect ratio
         else:
             return
         # Billboarded sprite
@@ -1222,7 +1240,10 @@ class DungeonRenderer:
 
     def render_dropped_items(self, dropped_items, camera_pos=None):
         for item in dropped_items:
-            self.render_dropped_item(item, camera_pos)
+            self.renderer.render_dropped_item(item, camera_pos)
+        # Always render the key if it exists and hasn't been picked up
+        if hasattr(self, 'key_item') and self.key_item and not self.key_item.collected:
+            self.renderer.render_dropped_item(self.key_item, camera_pos)
 
     def render_fireball(self, fireball, camera_pos=None):
         """Render a fireball as a billboarded sprite"""
@@ -2290,9 +2311,9 @@ class DungeonCrawler:
         
         self.fireballs = active_fireballs
         
-        # Remove dropped items after 120 seconds
+        # Remove dropped items after 120 seconds, but never remove the key
         now = time.time()
-        self.dropped_items = [item for item in self.dropped_items if not item.collected and (now - item.spawn_time) < 120]
+        self.dropped_items = [item for item in self.dropped_items if (item.item_type == 'key') or (not item.collected and (now - item.spawn_time) < 120)]
         self.skeletons = alive
         self.check_item_pickup()
 
@@ -2396,6 +2417,10 @@ class DungeonCrawler:
                     break
         if not placed:
             pass
+        if item.item_type == 'key':
+            item.collected = True
+            print('Key picked up!')
+            return
 
     def drop_selected_item(self):
         """Drop the selected item in front of the player and shift items left to fill the gap."""
@@ -2499,6 +2524,22 @@ class DungeonCrawler:
         magicball.active = True
         self.fireballs.append(magicball)
         print(f"Magicball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
+
+    def spawn_key_item(self):
+        # Find the farthest walkable tile from the player
+        max_dist = -1
+        farthest_pos = None
+        player_x, player_z = int(self.camera_pos[0]), int(self.camera_pos[2])
+        for z in range(len(self.dungeon_grid)):
+            for x in range(len(self.dungeon_grid[0])):
+                if self.dungeon_grid[z][x] == 0:  # Walkable
+                    dist = math.sqrt((x - player_x) ** 2 + (z - player_z) ** 2)
+                    if dist > max_dist:
+                        max_dist = dist
+                        farthest_pos = (x + 0.5, z + 0.5)
+        if farthest_pos:
+            self.key_item = DroppedItem('key', farthest_pos[0], farthest_pos[1])
+            self.key_spawned = True
 
 if __name__ == "__main__":
     game = DungeonCrawler()
