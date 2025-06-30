@@ -1544,7 +1544,6 @@ class DungeonCrawler:
         # Inventory system
         self.inventory = [{"type": "empty", "count": 0}] * self.num_slots  # Initialize with dict items
         self.inventory[0] = {"type": "rusty_sword", "count": 1}  # Place starter item in first slot
-        self.inventory[1] = {"type": "magic_scroll", "count": 1}  # Add magic scroll for testing
         
         # Sword swing animation variables
         self.is_swinging = False
