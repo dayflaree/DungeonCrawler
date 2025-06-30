@@ -220,8 +220,11 @@ class DungeonRenderer:
         self.potion_health_texture_id = None
         self.potion_magic_texture_id = None
         self.scroll_fire_texture_id = None
+        self.scroll_magic_texture_id = None
         self.spell_fire_texture_id = None
+        self.spell_magic_texture_id = None  # Add this line
         self.fireball_texture_id = None
+        self.magicball_texture_id = None  # Add this line
         self.load_texture()
         
     def load_texture(self):
@@ -1358,7 +1361,7 @@ class DroppedItem:
         self.spawn_time = time.time()
 
 class Fireball:
-    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0):
+    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0, is_magic=False):
         self.x = x
         self.z = z
         self.direction_x = direction_x
@@ -1369,6 +1372,7 @@ class Fireball:
         self.spawn_x = x
         self.spawn_z = z
         self.active = True
+        self.is_magic = is_magic  # Add this line
     
     def update(self):
         """Update fireball position and check if it should be destroyed"""
@@ -1403,7 +1407,10 @@ class Fireball:
         
         if distance <= collision_radius:
             # Hit! Apply damage and destroy fireball
-            skeleton.take_damage(10)  # 10 damage
+            if hasattr(self, 'is_magic') and self.is_magic:
+                skeleton.take_damage(20)  # Magicball deals 20 damage
+            else:
+                skeleton.take_damage(10)  # Fireball deals 10 damage
             self.active = False
             return True
         
@@ -1586,6 +1593,13 @@ class DungeonCrawler:
                         self.use_health_potion()
                     elif self.inventory[self.selected_slot]["type"] == "magic_potion":
                         self.use_magic_potion()
+                elif self.inventory[self.selected_slot]["type"] == "magic_scroll" and not self.is_swinging:
+                    if self.current_mana >= 5:
+                        self.is_swinging = True
+                        self.swing_start_time = pygame.time.get_ticks()
+                        self.cast_magic_spell()
+                    else:
+                        print("Not enough mana to cast magic spell!")
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
@@ -1826,11 +1840,17 @@ class DungeonCrawler:
             held_texture_id = self.renderer.spell_fire_texture_id
             held_width = 200
             held_height = held_width * (384/146)  # Spell fire aspect ratio (146x384)
+        elif self.inventory[self.selected_slot]["type"] == "magic_scroll":
+            if not hasattr(self.renderer, 'spell_magic_texture_id') or not self.renderer.spell_magic_texture_id:
+                return
+            held_texture_id = self.renderer.spell_magic_texture_id
+            held_width = 200
+            held_height = held_width * (384/146)  # Spell magic aspect ratio (146x384)
         else:
             return
         swing_rotation = 0
         # Show swing animation for weapons and spells
-        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
+        if self.is_swinging and self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll", "magic_scroll"]:
             current_time = pygame.time.get_ticks()
             elapsed_time = current_time - self.swing_start_time
             if elapsed_time < self.swing_duration:
@@ -1858,11 +1878,15 @@ class DungeonCrawler:
         # Move fire spell to the left
         if self.inventory[self.selected_slot]["type"] == "fire_scroll":
             weapon_x -= 50  # Move 50 pixels to the left
+        elif self.inventory[self.selected_slot]["type"] == "magic_scroll":
+            weapon_x -= 50  # Move 50 pixels to the left
         weapon_y = -50
         glPushMatrix()
         glTranslatef(weapon_x + held_width/2, weapon_y + held_height/2, 0)
         # Different rotation for weapons vs potions
         if self.inventory[self.selected_slot]["type"] in ["rusty_sword", "skeleton_sword", "fire_scroll"]:
+            glRotatef(15 + swing_rotation, 0, 0, 1)
+        elif self.inventory[self.selected_slot]["type"] == "magic_scroll":
             glRotatef(15 + swing_rotation, 0, 0, 1)
         else:
             glRotatef(5, 0, 0, 1)  # Slight tilt for potions
@@ -2416,6 +2440,29 @@ class DungeonCrawler:
             # If the selected slot is now empty, move selection left if possible
             if self.inventory[slot]["type"] == "empty" and slot > 0:
                 self.selected_slot = slot - 1
+
+    def cast_magic_spell(self):
+        """Cast a magic spell that creates a magicball projectile"""
+        # Check if player has enough mana
+        if self.current_mana < 5:
+            print("Not enough mana to cast magic spell!")
+            return
+        # Consume mana
+        self.current_mana -= 5
+        print(f"Cast magic spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
+        # Calculate magicball spawn position (in front of player)
+        yaw = self.camera_rot[1]
+        spawn_distance = 1.0
+        spawn_x = self.camera_pos[0] + (-math.sin(yaw)) * spawn_distance
+        spawn_z = self.camera_pos[2] + (-math.cos(yaw)) * spawn_distance
+        # Calculate magicball direction (same as player's forward direction)
+        direction_x = -math.sin(yaw)
+        direction_z = -math.cos(yaw)
+        # Create magicball projectile
+        magicball = Fireball(spawn_x, spawn_z, direction_x, direction_z, is_magic=True)
+        magicball.active = True
+        self.fireballs.append(magicball)
+        print(f"Magicball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
 
 if __name__ == "__main__":
     game = DungeonCrawler()
