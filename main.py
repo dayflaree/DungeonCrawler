@@ -1360,7 +1360,7 @@ class DroppedItem:
         self.spawn_time = time.time()
 
 class Fireball:
-    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=15.0, is_magic=False):
+    def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=7.0, is_magic=False, collision_checker=None):
         self.x = x
         self.z = z
         self.direction_x = direction_x
@@ -1371,22 +1371,26 @@ class Fireball:
         self.spawn_x = x
         self.spawn_z = z
         self.active = True
-        self.is_magic = is_magic  # Add this line
+        self.is_magic = is_magic
+        self.collision_checker = collision_checker
     
     def update(self):
         """Update fireball position and check if it should be destroyed"""
         if not self.active:
             return
-        
         # Move fireball in its direction
-        self.x += self.direction_x * self.speed
-        self.z += self.direction_z * self.speed
-        
+        next_x = self.x + self.direction_x * self.speed
+        next_z = self.z + self.direction_z * self.speed
+        # Check for wall collision before moving
+        if self.collision_checker and self.collision_checker(next_x, next_z):
+            self.active = False
+            return
+        self.x = next_x
+        self.z = next_z
         # Calculate distance traveled
         dx = self.x - self.spawn_x
         dz = self.z - self.spawn_z
         self.distance_traveled = math.sqrt(dx*dx + dz*dz)
-        
         # Destroy if traveled too far
         if self.distance_traveled >= self.max_distance:
             self.active = False
@@ -1648,13 +1652,17 @@ class DungeonCrawler:
             
             # Drop 3-5 random items around the chest
             num_items = random.randint(3, 5)
-            
+            fire_scroll_dropped = False
             for i in range(num_items):
                 # Determine item type based on rarity
                 rand = random.random() * 100  # Random number 0-100
-                
-                if rand < 20:  # 20% chance for scrolls
-                    item_type = 'fire_scroll'
+                if rand < 20:
+                    if not fire_scroll_dropped:
+                        item_type = 'fire_scroll'
+                        fire_scroll_dropped = True
+                    else:
+                        # Replace with a random valid item (health or magic potion)
+                        item_type = random.choice(['health_potion', 'magic_potion'])
                 elif rand < 50:  # 30% chance for health potions (70% total - 20% scrolls = 30% remaining)
                     item_type = 'health_potion'
                 elif rand < 80:  # 30% chance for magic potions (60% total - 30% health = 30% remaining)
@@ -2287,29 +2295,24 @@ class DungeonCrawler:
 
     def cast_fire_spell(self):
         """Cast a fire spell that creates a fireball projectile"""
-        # Check if player has enough mana
         if self.current_mana < 5:
             print("Not enough mana to cast fire spell!")
             return
-        
-        # Consume mana
         self.current_mana -= 5
         print(f"Cast fire spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
-        
         # Calculate fireball spawn position (in front of player)
+        pitch = self.camera_rot[0]
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
-        spawn_x = self.camera_pos[0] + (-math.sin(yaw)) * spawn_distance
-        spawn_z = self.camera_pos[2] + (-math.cos(yaw)) * spawn_distance
-        
-        # Calculate fireball direction (same as player's forward direction)
-        direction_x = -math.sin(yaw)
-        direction_z = -math.cos(yaw)
-        
-        # Create fireball projectile
-        fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z)
+        # 3D direction
+        direction_x = -math.sin(yaw) * math.cos(pitch)
+        direction_y = math.sin(pitch)
+        direction_z = -math.cos(yaw) * math.cos(pitch)
+        spawn_x = self.camera_pos[0] + direction_x * spawn_distance
+        spawn_z = self.camera_pos[2] + direction_z * spawn_distance
+        # Create fireball projectile (2D, ignore y for now)
+        fireball = Fireball(spawn_x, spawn_z, direction_x, direction_z, max_distance=7.0, is_magic=False, collision_checker=self.check_collision)
         self.fireballs.append(fireball)
-        
         print(f"Fireball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
 
     def check_nearby_items(self):
@@ -2438,23 +2441,20 @@ class DungeonCrawler:
 
     def cast_magic_spell(self):
         """Cast a magic spell that creates a magicball projectile"""
-        # Check if player has enough mana
         if self.current_mana < 5:
             print("Not enough mana to cast magic spell!")
             return
-        # Consume mana
         self.current_mana -= 5
         print(f"Cast magic spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
-        # Calculate magicball spawn position (in front of player)
+        pitch = self.camera_rot[0]
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
-        spawn_x = self.camera_pos[0] + (-math.sin(yaw)) * spawn_distance
-        spawn_z = self.camera_pos[2] + (-math.cos(yaw)) * spawn_distance
-        # Calculate magicball direction (same as player's forward direction)
-        direction_x = -math.sin(yaw)
-        direction_z = -math.cos(yaw)
-        # Create magicball projectile
-        magicball = Fireball(spawn_x, spawn_z, direction_x, direction_z, is_magic=True)
+        direction_x = -math.sin(yaw) * math.cos(pitch)
+        direction_y = math.sin(pitch)
+        direction_z = -math.cos(yaw) * math.cos(pitch)
+        spawn_x = self.camera_pos[0] + direction_x * spawn_distance
+        spawn_z = self.camera_pos[2] + direction_z * spawn_distance
+        magicball = Fireball(spawn_x, spawn_z, direction_x, direction_z, max_distance=7.0, is_magic=True, collision_checker=self.check_collision)
         magicball.active = True
         self.fireballs.append(magicball)
         print(f"Magicball spawned at ({spawn_x:.2f}, {spawn_z:.2f})")
