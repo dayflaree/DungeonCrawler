@@ -1404,7 +1404,7 @@ class NPC:
             self.center_x = new_x
             self.center_z = new_z
 
-    def take_damage(self, amount, knockback_vec=None, collision_checker=None):
+    def take_damage(self, amount, knockback_vec=None, collision_checker=None, sound_callback=None, death_callback=None):
         if not self.is_alive:
             return
         self.health -= amount
@@ -1412,6 +1412,13 @@ class NPC:
         if self.health <= 0:
             self.is_alive = False
             self.death_timer = 0
+            # Play death sound if callback provided and NPC just died
+            if death_callback:
+                death_callback()
+        else:
+            # Play hit sound if callback provided and NPC is still alive
+            if sound_callback:
+                sound_callback()
         if knockback_vec is not None:
             new_x = self.center_x + knockback_vec[0]
             new_z = self.center_z + knockback_vec[1]
@@ -1480,7 +1487,7 @@ class Fireball:
         if self.distance_traveled >= self.max_distance:
             self.active = False
     
-    def check_collision_with_skeleton(self, skeleton):
+    def check_collision_with_skeleton(self, skeleton, sound_callback=None, death_callback=None):
         """Check if fireball hits a skeleton"""
         if not self.active or not skeleton.is_alive:
             return False
@@ -1496,9 +1503,9 @@ class Fireball:
         if distance <= collision_radius:
             # Hit! Apply damage and destroy fireball
             if hasattr(self, 'is_magic') and self.is_magic:
-                skeleton.take_damage(20)  # Magicball deals 20 damage
+                skeleton.take_damage(20, sound_callback=sound_callback, death_callback=death_callback)  # Magicball deals 20 damage
             else:
-                skeleton.take_damage(10)  # Fireball deals 10 damage
+                skeleton.take_damage(10, sound_callback=sound_callback, death_callback=death_callback)  # Fireball deals 10 damage
             self.active = False
             return True
         
@@ -1576,6 +1583,15 @@ class DungeonCrawler:
         # Fireballs
         self.fireballs = []
 
+        # Load sound effects
+        self.hit_npc_sound = None
+        self.hit_player_sound = None
+        self.death_npc_sound = None
+        self.chest_sound = None
+        self.potion_sound = None
+        self.spell_sound = None
+        self.load_sound_effects()
+
         # Spawn the key at the farthest location from the player
         self.spawn_key_item()
     
@@ -1614,6 +1630,32 @@ class DungeonCrawler:
             print(f"Could not load hotbar texture: {e}")
             print("Make sure 'bar.png' exists in the assets folder")
             self.hotbar_texture_id = None
+    
+    def load_sound_effects(self):
+        """Load sound effects"""
+        try:
+            self.hit_npc_sound = pygame.mixer.Sound("assets/hit_npc.wav")
+            self.hit_npc_sound.set_volume(0.5)  # Set volume to 50%
+            self.hit_player_sound = pygame.mixer.Sound("assets/hit.wav")
+            self.hit_player_sound.set_volume(0.5)  # Set volume to 50%
+            self.death_npc_sound = pygame.mixer.Sound("assets/death_npc.wav")
+            self.death_npc_sound.set_volume(0.5)  # Set volume to 50%
+            self.chest_sound = pygame.mixer.Sound("assets/chest.wav")
+            self.chest_sound.set_volume(0.5)  # Set volume to 50%
+            self.potion_sound = pygame.mixer.Sound("assets/potion.wav")
+            self.potion_sound.set_volume(0.5)  # Set volume to 50%
+            self.spell_sound = pygame.mixer.Sound("assets/spell.wav")
+            self.spell_sound.set_volume(0.5)  # Set volume to 50%
+            print("Sound effects loaded successfully")
+        except Exception as e:
+            print(f"Could not load sound effects: {e}")
+            print("Make sure 'hit_npc.wav', 'hit.wav', 'death_npc.wav', 'chest.wav', 'potion.wav', and 'spell.wav' exist in the assets folder")
+            self.hit_npc_sound = None
+            self.hit_player_sound = None
+            self.death_npc_sound = None
+            self.chest_sound = None
+            self.potion_sound = None
+            self.spell_sound = None
     
     def setup_gl(self):
         """Setup OpenGL environment"""
@@ -1771,6 +1813,10 @@ class DungeonCrawler:
                 if self.nearby_chest in self.dungeon_generator.chest_positions:
                     self.dungeon_generator.chest_positions.remove(self.nearby_chest)
                     print(f"Chest opened and removed! Dropped {num_items} items. Remaining chests: {len(self.dungeon_generator.chest_positions)}")
+                    
+                    # Play chest opening sound
+                    if self.chest_sound:
+                        self.chest_sound.play()
                     
                     # Update the spatial grid to reflect the removed chest
                     if hasattr(self.renderer, 'chest_chunks'):
@@ -2329,6 +2375,9 @@ class DungeonCrawler:
                         else:
                             damage = 5
                         self.current_health = max(0, self.current_health - damage)
+                        # Play hit sound when player takes damage
+                        if self.hit_player_sound:
+                            self.hit_player_sound.play()
                         skel.attack_cooldown = 40
                         skel.frozen_timer = 10
                         attacked = True
@@ -2354,7 +2403,9 @@ class DungeonCrawler:
             
             # Check collision with skeletons
             for skeleton in self.skeletons:
-                if fireball.check_collision_with_skeleton(skeleton):
+                if fireball.check_collision_with_skeleton(skeleton, 
+                    sound_callback=lambda: self.hit_npc_sound.play() if self.hit_npc_sound else None,
+                    death_callback=lambda: self.death_npc_sound.play() if self.death_npc_sound else None):
                     print(f"Fireball hit skeleton! Skeleton health: {skeleton.health}")
                     break
             
@@ -2406,7 +2457,9 @@ class DungeonCrawler:
             if angle < attack_angle / 2:
                 # Hit! Apply damage and knockback
                 knockback = to_skel_norm * 0.7  # Move back 0.7 units
-                skel.take_damage(damage, knockback_vec=knockback, collision_checker=self.check_collision)
+                skel.take_damage(damage, knockback_vec=knockback, collision_checker=self.check_collision, 
+                    sound_callback=lambda: self.hit_npc_sound.play() if self.hit_npc_sound else None,
+                    death_callback=lambda: self.death_npc_sound.play() if self.death_npc_sound else None)
 
     def cast_fire_spell(self):
         """Cast a fire spell that creates a fireball projectile"""
@@ -2415,6 +2468,11 @@ class DungeonCrawler:
             return
         self.current_mana -= 5
         print(f"Cast fire spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
+        
+        # Play spell sound
+        if self.spell_sound:
+            self.spell_sound.play()
+        
         # Calculate fireball spawn position (in front of player)
         pitch = self.camera_rot[0]
         yaw = self.camera_rot[1]
@@ -2538,6 +2596,10 @@ class DungeonCrawler:
         
         print(f"Used health potion! Healed {actual_heal} HP (Health: {self.current_health}/{self.max_health})")
         
+        # Play potion sound
+        if self.potion_sound:
+            self.potion_sound.play()
+        
         # Consume one potion
         if item_data["count"] > 1:
             item_data["count"] -= 1
@@ -2566,6 +2628,10 @@ class DungeonCrawler:
         
         print(f"Used magic potion! Restored {actual_restore} mana (Mana: {self.current_mana}/{self.max_mana})")
         
+        # Play potion sound
+        if self.potion_sound:
+            self.potion_sound.play()
+        
         # Consume one potion
         if item_data["count"] > 1:
             item_data["count"] -= 1
@@ -2585,6 +2651,11 @@ class DungeonCrawler:
             return
         self.current_mana -= 10
         print(f"Cast magic spell! Consumed 10 mana. Current mana: {self.current_mana}/{self.max_mana}")
+        
+        # Play spell sound
+        if self.spell_sound:
+            self.spell_sound.play()
+        
         pitch = self.camera_rot[0]
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
