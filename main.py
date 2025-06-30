@@ -196,9 +196,9 @@ class DungeonGenerator:
         r = random.random()
         if r < 0.7:
             return "ghoul"
-        elif r < 0.7 + 0.5:
+        elif r < 0.7 + 0.25:
             return "skeleton"
-        elif r < 0.7 + 0.5 + 0.3:
+        elif r < 0.7 + 0.25 + 0.05:
             return "ghost"
         else:
             return "skeleton"  # fallback
@@ -524,6 +524,19 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_fire_image.width, spell_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_fire_image_data)
             print(f"Spell fire texture loaded: {spell_fire_image.width}x{spell_fire_image.height}")
             
+            # Load spell magic texture (for held magic spell)
+            spell_magic_image = Image.open("assets/spell_magic.png")
+            spell_magic_image = spell_magic_image.convert("RGBA")
+            spell_magic_image_data = spell_magic_image.tobytes()
+            self.spell_magic_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.spell_magic_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_magic_image.width, spell_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_magic_image_data)
+            print(f"Spell magic texture loaded: {spell_magic_image.width}x{spell_magic_image.height}")
+            
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
             print("All textures loaded successfully")
@@ -585,6 +598,7 @@ class DungeonRenderer:
             self.potion_magic_texture_id = None
             self.scroll_fire_texture_id = None
             self.spell_fire_texture_id = None
+            self.spell_magic_texture_id = None
             self.fireball_texture_id = None
             self.key_texture_id = None
     
@@ -1530,6 +1544,7 @@ class DungeonCrawler:
         # Inventory system
         self.inventory = [{"type": "empty", "count": 0}] * self.num_slots  # Initialize with dict items
         self.inventory[0] = {"type": "rusty_sword", "count": 1}  # Place starter item in first slot
+        self.inventory[1] = {"type": "magic_scroll", "count": 1}  # Add magic scroll for testing
         
         # Sword swing animation variables
         self.is_swinging = False
@@ -1670,16 +1685,16 @@ class DungeonCrawler:
                             self.swing_start_time = pygame.time.get_ticks()
                             self.cast_fire_spell()
                         # If not enough mana, do nothing (no animation, no spell)
+                    elif self.inventory[self.selected_slot]["type"] == "magic_scroll" and not self.is_swinging:
+                        if self.current_mana >= 5:
+                            self.is_swinging = True
+                            self.swing_start_time = pygame.time.get_ticks()
+                            self.cast_magic_spell()
+                        # If not enough mana, do nothing (no animation, no spell)
                     elif self.inventory[self.selected_slot]["type"] == "health_potion":
                         self.use_health_potion()
                     elif self.inventory[self.selected_slot]["type"] == "magic_potion":
                         self.use_magic_potion()
-                elif self.inventory[self.selected_slot]["type"] == "magic_scroll" and not self.is_swinging:
-                    if self.current_mana >= 5:
-                        self.is_swinging = True
-                        self.swing_start_time = pygame.time.get_ticks()
-                        self.cast_magic_spell()
-                    # If not enough mana, do nothing (no animation, no spell)
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Enable up/down
@@ -1875,6 +1890,15 @@ class DungeonCrawler:
                 glBindTexture(GL_TEXTURE_2D, 0)
             elif item_data["type"] == "fire_scroll" and self.renderer.scroll_fire_texture_id:
                 glBindTexture(GL_TEXTURE_2D, self.renderer.scroll_fire_texture_id)
+                glBegin(GL_QUADS)
+                glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
+                glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
+                glTexCoord2f(1, 0); glVertex2f(slot_x + slot_width * 0.8, slot_y + slot_height)
+                glTexCoord2f(0, 0); glVertex2f(slot_x, slot_y + slot_height)
+                glEnd()
+                glBindTexture(GL_TEXTURE_2D, 0)
+            elif item_data["type"] == "magic_scroll" and hasattr(self.renderer, 'scroll_magic_texture_id') and self.renderer.scroll_magic_texture_id:
+                glBindTexture(GL_TEXTURE_2D, self.renderer.scroll_magic_texture_id)
                 glBegin(GL_QUADS)
                 glTexCoord2f(0, 1); glVertex2f(slot_x, slot_y)
                 glTexCoord2f(1, 1); glVertex2f(slot_x + slot_width * 0.8, slot_y)
@@ -2557,11 +2581,11 @@ class DungeonCrawler:
 
     def cast_magic_spell(self):
         """Cast a magic spell that creates a magicball projectile"""
-        if self.current_mana < 5:
+        if self.current_mana < 10:
             print("Not enough mana to cast magic spell!")
             return
-        self.current_mana -= 5
-        print(f"Cast magic spell! Consumed 5 mana. Current mana: {self.current_mana}/{self.max_mana}")
+        self.current_mana -= 10
+        print(f"Cast magic spell! Consumed 10 mana. Current mana: {self.current_mana}/{self.max_mana}")
         pitch = self.camera_rot[0]
         yaw = self.camera_rot[1]
         spawn_distance = 1.0
