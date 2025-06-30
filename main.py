@@ -1266,13 +1266,23 @@ def astar(grid, start, goal):
     return []
 
 class NPC:
-    def __init__(self, x, z, center_x, center_z, npc_type="skeleton", health=40):
+    def __init__(self, x, z, center_x, center_z, npc_type="skeleton", health=None):
         self.x = x
         self.z = z
         self.center_x = center_x
         self.center_z = center_z
         self.npc_type = npc_type  # "skeleton", "ghoul", or "ghost"
-        self.health = health
+        # Set health based on type if not provided
+        if health is not None:
+            self.health = health
+        elif npc_type == "ghoul":
+            self.health = 10
+        elif npc_type == "skeleton":
+            self.health = 20
+        elif npc_type == "ghost":
+            self.health = 30
+        else:
+            self.health = 20
         self.flash_timer = 0  # Frames to flash red
         self.is_alive = True
         self.death_timer = 0  # Frames to show corpse (black)
@@ -2167,7 +2177,16 @@ class DungeonCrawler:
                     skel.attack_cooldown -= 1
                 else:
                     if dist < 2.0:
-                        self.current_health = max(0, self.current_health - 5)
+                        # Set damage based on type
+                        if skel.npc_type == "ghoul":
+                            damage = 5
+                        elif skel.npc_type == "skeleton":
+                            damage = 7
+                        elif skel.npc_type == "ghost":
+                            damage = 10
+                        else:
+                            damage = 5
+                        self.current_health = max(0, self.current_health - damage)
                         skel.attack_cooldown = 40
                         skel.frozen_timer = 10
                         attacked = True
