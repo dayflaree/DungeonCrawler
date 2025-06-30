@@ -1103,7 +1103,7 @@ class DungeonRenderer:
         elif item.item_type == 'rusty_sword' and self.weapon_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.weapon_texture_id)  # wep_rusty.png (hotbar icon)
             item_size = 0.5
-            item_height = item_size * (984/718)  # Rusty sword aspect ratio
+            item_height = item_size * (500/255)  # Rusty sword aspect ratio updated to 255x500
         elif item.item_type == 'health_potion' and self.potion_health_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.potion_health_texture_id)
             item_size = 0.25
@@ -1752,7 +1752,7 @@ class DungeonCrawler:
                 return
             held_texture_id = self.renderer.held_weapon_texture_id
             held_width = 260
-            held_height = held_width * (500/208)
+            held_height = held_width * (500/255)  # Updated to 255x500 aspect ratio
         elif self.inventory[self.selected_slot]["type"] == "skeleton_sword":
             if not self.renderer.held_skeleton_sword_texture_id:
                 return
