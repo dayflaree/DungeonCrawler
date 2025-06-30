@@ -489,31 +489,18 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, scroll_fire_image.width, scroll_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scroll_fire_image_data)
             print(f"Fire scroll texture loaded: {scroll_fire_image.width}x{scroll_fire_image.height}")
             
-            # Load spell fire texture
-            spell_fire_image = Image.open("assets/spell_fire.png")
-            spell_fire_image = spell_fire_image.convert("RGBA")
-            spell_fire_image_data = spell_fire_image.tobytes()
-            self.spell_fire_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.spell_fire_texture_id)
+            # Load magic scroll texture
+            scroll_magic_image = Image.open("assets/scroll_magic.png")
+            scroll_magic_image = scroll_magic_image.convert("RGBA")
+            scroll_magic_image_data = scroll_magic_image.tobytes()
+            self.scroll_magic_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.scroll_magic_texture_id)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_fire_image.width, spell_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_fire_image_data)
-            print(f"Spell fire texture loaded: {spell_fire_image.width}x{spell_fire_image.height}")
-            
-            # Load fireball texture
-            fireball_image = Image.open("assets/fireball.png")
-            fireball_image = fireball_image.convert("RGBA")
-            fireball_image_data = fireball_image.tobytes()
-            self.fireball_texture_id = glGenTextures(1)
-            glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fireball_image.width, fireball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, fireball_image_data)
-            print(f"Fireball texture loaded: {fireball_image.width}x{fireball_image.height}")
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, scroll_magic_image.width, scroll_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scroll_magic_image_data)
+            print(f"Magic scroll texture loaded: {scroll_magic_image.width}x{scroll_magic_image.height}")
             
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
@@ -1164,6 +1151,10 @@ class DungeonRenderer:
             glBindTexture(GL_TEXTURE_2D, self.scroll_fire_texture_id)
             item_size = 0.4
             item_height = item_size * (125/111)  # Scroll aspect ratio (111x125)
+        elif item.item_type == 'magic_scroll' and hasattr(self, 'scroll_magic_texture_id') and self.scroll_magic_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.scroll_magic_texture_id)
+            item_size = 0.4
+            item_height = item_size * (125/111)  # Same aspect ratio as fire scroll
         else:
             return
         # Billboarded sprite
@@ -2201,6 +2192,9 @@ class DungeonCrawler:
                 # Instantly drop item if just died
                 if random.random() < 0.4:
                     self.dropped_items.append(DroppedItem('skeleton_sword', skel.center_x, skel.center_z))
+                # 15% chance for ghost to drop magic scroll
+                if skel.npc_type == "ghost" and random.random() < 0.15:
+                    self.dropped_items.append(DroppedItem('magic_scroll', skel.center_x, skel.center_z))
         
         # Update fireballs and check for skeleton collisions
         active_fireballs = []
