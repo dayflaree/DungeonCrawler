@@ -505,10 +505,49 @@ class DungeonRenderer:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, scroll_magic_image.width, scroll_magic_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scroll_magic_image_data)
             print(f"Magic scroll texture loaded: {scroll_magic_image.width}x{scroll_magic_image.height}")
             
+            # Load spell fire texture (for held spell)
+            spell_fire_image = Image.open("assets/spell_fire.png")
+            spell_fire_image = spell_fire_image.convert("RGBA")
+            spell_fire_image_data = spell_fire_image.tobytes()
+            self.spell_fire_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.spell_fire_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, spell_fire_image.width, spell_fire_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spell_fire_image_data)
+            print(f"Spell fire texture loaded: {spell_fire_image.width}x{spell_fire_image.height}")
+            
             # Unbind texture to avoid state issues
             glBindTexture(GL_TEXTURE_2D, 0)
             print("All textures loaded successfully")
             print("Starter weapon 'rusty_sword' added to inventory slot 0")
+
+            # Load fireball texture (for fire spell projectile)
+            fireball_image = Image.open("assets/fireball.png")
+            fireball_image = fireball_image.convert("RGBA")
+            fireball_image_data = fireball_image.tobytes()
+            self.fireball_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fireball_image.width, fireball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, fireball_image_data)
+            print(f"Fireball texture loaded: {fireball_image.width}x{fireball_image.height}")
+
+            # Load magicball texture (for magic spell projectile)
+            magicball_image = Image.open("assets/magicball.png")
+            magicball_image = magicball_image.convert("RGBA")
+            magicball_image_data = magicball_image.tobytes()
+            self.magicball_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.magicball_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, magicball_image.width, magicball_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, magicball_image_data)
+            print(f"Magicball texture loaded: {magicball_image.width}x{magicball_image.height}")
         except Exception as e:
             print(f"Error loading texture: {e}")
             self.texture_id = None
@@ -1187,35 +1226,41 @@ class DungeonRenderer:
 
     def render_fireball(self, fireball, camera_pos=None):
         """Render a fireball as a billboarded sprite"""
-        if not fireball.active or not self.fireball_texture_id:
+        if not fireball.active:
             return
-        
+        # Choose texture and color based on fireball type
+        if hasattr(fireball, 'is_magic') and fireball.is_magic:
+            if not hasattr(self, 'magicball_texture_id') or not self.magicball_texture_id:
+                return
+            texture_id = self.magicball_texture_id
+            color_ambient = [0.3, 0.3, 0.8, 1.0]
+            color_diffuse = [0.5, 0.5, 1.0, 1.0]
+        else:
+            if not self.fireball_texture_id:
+                return
+            texture_id = self.fireball_texture_id
+            color_ambient = [0.8, 0.4, 0.1, 1.0]
+            color_diffuse = [1.0, 0.5, 0.2, 1.0]
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glBindTexture(GL_TEXTURE_2D, self.fireball_texture_id)
-        
-        # Set material properties for fireball
-        glMaterialfv(GL_FRONT, GL_AMBIENT, [0.8, 0.4, 0.1, 1.0])
-        glMaterialfv(GL_FRONT, GL_DIFFUSE, [1.0, 0.5, 0.2, 1.0])
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        # Set material properties
+        glMaterialfv(GL_FRONT, GL_AMBIENT, color_ambient)
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, color_diffuse)
         glMaterialfv(GL_FRONT, GL_SPECULAR, [0.2, 0.1, 0.05, 1.0])
         glMaterialf(GL_FRONT, GL_SHININESS, 10.0)
-        
         # Fireball size and aspect ratio (109x125)
         fireball_size = 0.4
-        fireball_height = fireball_size * (125/109)  # Fireball aspect ratio (109x125)
-        
-        # Billboarded sprite
-        y = 0.5  # Slightly higher than dropped items
+        fireball_height = fireball_size * (125/109)
+        y = 0.5
         angle = 0
         if camera_pos:
             to_player_x = camera_pos[0] - fireball.x
             to_player_z = camera_pos[2] - fireball.z
             angle = math.atan2(to_player_x, to_player_z)
-        
         glPushMatrix()
         glTranslatef(fireball.x, y, fireball.z)
         glRotatef(angle * 180 / math.pi, 0, 1, 0)
-        
         glBegin(GL_QUADS)
         glNormal3f(0, 0, 1)
         glTexCoord2f(0, 1); glVertex3f(-fireball_size/2, 0, 0)
@@ -1223,7 +1268,6 @@ class DungeonRenderer:
         glTexCoord2f(1, 0); glVertex3f(fireball_size/2, fireball_height, 0)
         glTexCoord2f(0, 0); glVertex3f(-fireball_size/2, fireball_height, 0)
         glEnd()
-        
         glPopMatrix()
         glBindTexture(GL_TEXTURE_2D, 0)
         glDisable(GL_BLEND)
@@ -1590,13 +1634,11 @@ class DungeonCrawler:
                         self.swing_start_time = pygame.time.get_ticks()
                         self.try_attack_skeletons()
                     elif self.inventory[self.selected_slot]["type"] == "fire_scroll" and not self.is_swinging:
-                        # Check if player has enough mana before starting animation
                         if self.current_mana >= 5:
                             self.is_swinging = True
                             self.swing_start_time = pygame.time.get_ticks()
                             self.cast_fire_spell()
-                        else:
-                            print("Not enough mana to cast fire spell!")
+                        # If not enough mana, do nothing (no animation, no spell)
                     elif self.inventory[self.selected_slot]["type"] == "health_potion":
                         self.use_health_potion()
                     elif self.inventory[self.selected_slot]["type"] == "magic_potion":
@@ -1606,8 +1648,7 @@ class DungeonCrawler:
                         self.is_swinging = True
                         self.swing_start_time = pygame.time.get_ticks()
                         self.cast_magic_spell()
-                    else:
-                        print("Not enough mana to cast magic spell!")
+                    # If not enough mana, do nothing (no animation, no spell)
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
                 self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Enable up/down
