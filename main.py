@@ -171,7 +171,8 @@ class DungeonGenerator:
                     center_z = skel_z + 0.5
                     dist_to_player = math.sqrt((center_x - player_spawn_x)**2 + (center_z - player_spawn_z)**2)
                     if dist_to_player > safe_radius:
-                        self.skeletons.append(Skeleton(skel_x, skel_z, center_x, center_z))
+                        npc_type = self._choose_npc_type()
+                        self.skeletons.append(NPC(skel_x, skel_z, center_x, center_z, npc_type=npc_type))
         # Random chance to spawn skeletons elsewhere
         for z in range(1, self.height-1):
             for x in range(1, self.width-1):
@@ -180,10 +181,22 @@ class DungeonGenerator:
                     center_z = z + 0.5
                     dist_to_player = math.sqrt((center_x - player_spawn_x)**2 + (center_z - player_spawn_z)**2)
                     if dist_to_player > safe_radius:
-                        self.skeletons.append(Skeleton(x, z, center_x, center_z))
+                        npc_type = self._choose_npc_type()
+                        self.skeletons.append(NPC(x, z, center_x, center_z, npc_type=npc_type))
         print(f"Placed {len(self.skeletons)} skeletons")
         
         return self.grid
+
+    def _choose_npc_type(self):
+        r = random.random()
+        if r < 0.7:
+            return "ghoul"
+        elif r < 0.7 + 0.5:
+            return "skeleton"
+        elif r < 0.7 + 0.5 + 0.3:
+            return "ghost"
+        else:
+            return "skeleton"  # fallback
 
 class DungeonRenderer:
     def __init__(self):
@@ -202,6 +215,8 @@ class DungeonRenderer:
         self.mana_bar_texture_id = None
         self.mana_fill_texture_id = None
         self.skeleton_texture_id = None
+        self.ghoul_texture_id = None
+        self.ghost_texture_id = None
         self.potion_health_texture_id = None
         self.potion_magic_texture_id = None
         self.scroll_fire_texture_id = None
@@ -382,6 +397,32 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, skeleton_image.width, skeleton_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, skeleton_image_data)
             print(f"Skeleton texture loaded: {skeleton_image.width}x{skeleton_image.height}")
+
+            # Load ghoul texture
+            ghoul_image = Image.open("assets/ghoul.png")
+            ghoul_image = ghoul_image.convert("RGBA")
+            ghoul_image_data = ghoul_image.tobytes()
+            self.ghoul_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.ghoul_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ghoul_image.width, ghoul_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ghoul_image_data)
+            print(f"Ghoul texture loaded: {ghoul_image.width}x{ghoul_image.height}")
+
+            # Load ghost texture
+            ghost_image = Image.open("assets/ghost.png")
+            ghost_image = ghost_image.convert("RGBA")
+            ghost_image_data = ghost_image.tobytes()
+            self.ghost_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.ghost_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ghost_image.width, ghost_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ghost_image_data)
+            print(f"Ghost texture loaded: {ghost_image.width}x{ghost_image.height}")
             
             # Load skeleton sword icon
             skeleton_sword_image = Image.open("assets/wep_skeleton.png")
@@ -1025,69 +1066,76 @@ class DungeonRenderer:
                     if distance <= render_distance and self.is_in_frustum(center_x, center_z, camera_pos, camera_rot):
                         self.render_chest(chest_x, chest_z, center_x, center_z, camera_pos=camera_pos)
 
-    def render_skeleton(self, skeleton, camera_pos=None):
-        """Render a skeleton as a billboarded sprite, with strong additive tint for red flash/black death, and upright sprite"""
-        if not skeleton.is_alive:
+    def render_npc(self, npc, camera_pos=None):
+        if not npc.is_alive:
             return
         glEnable(GL_BLEND)
-        # Use additive blending only when flashing red
-        if skeleton.flash_timer > 0:
+        if npc.flash_timer > 0:
             glBlendFunc(GL_ONE, GL_ONE)
         else:
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        if self.skeleton_texture_id:
+        # Choose texture based on type
+        if npc.npc_type == "ghoul" and self.ghoul_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.ghoul_texture_id)
+        elif npc.npc_type == "ghost" and self.ghost_texture_id:
+            glBindTexture(GL_TEXTURE_2D, self.ghost_texture_id)
+        elif npc.npc_type == "skeleton" and self.skeleton_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.skeleton_texture_id)
+        else:
+            glBindTexture(GL_TEXTURE_2D, 0)
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE)
-        # Set color: red flash or white
-        if skeleton.flash_timer > 0:
-            glColor4f(2.0, 0.1, 0.1, 1.0)  # Strong red (additive, >1.0 for more effect)
+        if npc.flash_timer > 0:
+            glColor4f(2.0, 0.1, 0.1, 1.0)
         else:
             glColor4f(1.0, 1.0, 1.0, 1.0)
         glDisable(GL_LIGHTING)
-        skel_width = 0.7
-        skel_height = skel_width * (984/718)
+        width = 0.7
+        # Use different aspect ratios if needed
+        if npc.npc_type == "ghoul":
+            height = width * (984/718)
+        elif npc.npc_type == "ghost":
+            height = width * (984/718)
+        else:
+            height = width * (984/718)
         if camera_pos:
-            to_player_x = camera_pos[0] - skeleton.center_x
-            to_player_z = camera_pos[2] - skeleton.center_z
+            to_player_x = camera_pos[0] - npc.center_x
+            to_player_z = camera_pos[2] - npc.center_z
             angle = math.atan2(to_player_x, to_player_z)
             glPushMatrix()
-            glTranslatef(skeleton.center_x, 0.1, skeleton.center_z)
+            glTranslatef(npc.center_x, 0.1, npc.center_z)
             glRotatef(angle * 180 / math.pi, 0, 1, 0)
             glBegin(GL_QUADS)
             glNormal3f(0, 0, 1)
-            # Flip vertically: swap v texture coordinates
-            glTexCoord2f(0, 1); glVertex3f(-skel_width/2, 0, 0)
-            glTexCoord2f(1, 1); glVertex3f(skel_width/2, 0, 0)
-            glTexCoord2f(1, 0); glVertex3f(skel_width/2, skel_height, 0)
-            glTexCoord2f(0, 0); glVertex3f(-skel_width/2, skel_height, 0)
+            glTexCoord2f(0, 1); glVertex3f(-width/2, 0, 0)
+            glTexCoord2f(1, 1); glVertex3f(width/2, 0, 0)
+            glTexCoord2f(1, 0); glVertex3f(width/2, height, 0)
+            glTexCoord2f(0, 0); glVertex3f(-width/2, height, 0)
             glEnd()
             glPopMatrix()
         else:
             glBegin(GL_QUADS)
             glNormal3f(0, 0, 1)
-            glTexCoord2f(0, 1); glVertex3f(skeleton.center_x - skel_width/2, 0, skeleton.center_z)
-            glTexCoord2f(1, 1); glVertex3f(skeleton.center_x + skel_width/2, 0, skeleton.center_z)
-            glTexCoord2f(1, 0); glVertex3f(skeleton.center_x + skel_width/2, skel_height, skeleton.center_z)
-            glTexCoord2f(0, 0); glVertex3f(skeleton.center_x - skel_width/2, skel_height, skeleton.center_z)
+            glTexCoord2f(0, 1); glVertex3f(npc.center_x - width/2, 0, npc.center_z)
+            glTexCoord2f(1, 1); glVertex3f(npc.center_x + width/2, 0, npc.center_z)
+            glTexCoord2f(1, 0); glVertex3f(npc.center_x + width/2, height, npc.center_z)
+            glTexCoord2f(0, 0); glVertex3f(npc.center_x - width/2, height, npc.center_z)
             glEnd()
         glEnable(GL_LIGHTING)
-        glColor4f(1.0, 1.0, 1.0, 1.0)  # Reset color
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)  # Restore normal blending
+        glColor4f(1.0, 1.0, 1.0, 1.0)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glDisable(GL_BLEND)
 
-    def render_skeletons(self, skeletons, camera_pos=None, camera_rot=None):
-        if not skeletons or camera_pos is None:
+    def render_npcs(self, npcs, camera_pos=None, camera_rot=None):
+        if not npcs or camera_pos is None:
             return
         max_distance = 10.0
-        for skeleton in skeletons:
-            # Distance culling
-            dist = math.sqrt((skeleton.center_x - camera_pos[0])**2 + (skeleton.center_z - camera_pos[2])**2)
+        for npc in npcs:
+            dist = math.sqrt((npc.center_x - camera_pos[0])**2 + (npc.center_z - camera_pos[2])**2)
             if dist > max_distance:
                 continue
-            # Frustum culling (if camera_rot is provided)
-            if camera_rot is not None and not self.is_in_frustum(skeleton.center_x, skeleton.center_z, camera_pos, camera_rot, max_distance=max_distance):
+            if camera_rot is not None and not self.is_in_frustum(npc.center_x, npc.center_z, camera_pos, camera_rot, max_distance=max_distance):
                 continue
-            self.render_skeleton(skeleton, camera_pos=camera_pos)
+            self.render_npc(npc, camera_pos=camera_pos)
 
     def render_dropped_item(self, item, camera_pos=None):
         # Only render if not collected
@@ -1217,12 +1265,13 @@ def astar(grid, start, goal):
                 heapq.heappush(open_set, (cost+1+heuristic(neighbor, goal), cost+1, neighbor, path+[neighbor]))
     return []
 
-class Skeleton:
-    def __init__(self, x, z, center_x, center_z, health=40):
+class NPC:
+    def __init__(self, x, z, center_x, center_z, npc_type="skeleton", health=40):
         self.x = x
         self.z = z
         self.center_x = center_x
         self.center_z = center_z
+        self.npc_type = npc_type  # "skeleton", "ghoul", or "ghost"
         self.health = health
         self.flash_timer = 0  # Frames to flash red
         self.is_alive = True
@@ -1236,7 +1285,6 @@ class Skeleton:
     def update_path(self, grid, player_tile):
         skel_tile = (int(self.center_x), int(self.center_z))
         player_tile = (int(player_tile[0]), int(player_tile[1]))
-        # If skeleton is off-path, recalculate immediately
         if self.path and self.path[0] != skel_tile:
             self.path_timer = 0
         if self.path_timer > 0 and self.last_player_tile == player_tile:
@@ -1244,8 +1292,8 @@ class Skeleton:
             return
         self.last_player_tile = player_tile
         self.path = astar(grid, skel_tile, player_tile)
-        print(f"Skeleton at {skel_tile} path to {player_tile}: {self.path}")
-        self.path_timer = 20  # Recalculate every 20 frames
+        print(f"NPC ({self.npc_type}) at {skel_tile} path to {player_tile}: {self.path}")
+        self.path_timer = 20
 
     def move_along_path(self, collision_checker, speed=0.05):
         if not self.is_alive or not self.path or len(self.path) < 2:
@@ -1253,7 +1301,7 @@ class Skeleton:
         skel_tile = (int(self.center_x), int(self.center_z))
         next_tile = self.path[1]
         if next_tile == skel_tile:
-            return  # Already at next tile, don't move
+            return
         dx = next_tile[0] + 0.5 - self.center_x
         dz = next_tile[1] + 0.5 - self.center_z
         dist = math.sqrt(dx*dx + dz*dz)
@@ -1272,10 +1320,10 @@ class Skeleton:
         if not self.is_alive:
             return
         self.health -= amount
-        self.flash_timer = 10  # Flash red for 10 frames
+        self.flash_timer = 10
         if self.health <= 0:
             self.is_alive = False
-            self.death_timer = 0  # Remove death timer, disappear instantly
+            self.death_timer = 0
         if knockback_vec is not None:
             new_x = self.center_x + knockback_vec[0]
             new_z = self.center_z + knockback_vec[1]
@@ -1291,7 +1339,7 @@ class Skeleton:
         dist = math.sqrt(dx*dx + dz*dz)
         if dist < 1e-5:
             return
-        move_dist = min(speed, dist)  # Don't overshoot
+        move_dist = min(speed, dist)
         move_x = dx / dist * move_dist
         move_z = dz / dist * move_dist
         new_x = self.center_x + move_x
@@ -2078,7 +2126,7 @@ class DungeonCrawler:
         self.render_mana_bar()
         
         # Render skeletons
-        self.renderer.render_skeletons(self.skeletons, self.camera_pos, self.camera_rot)
+        self.renderer.render_npcs(self.skeletons, self.camera_pos, self.camera_rot)
         
         # Render dropped items
         self.renderer.render_dropped_items(self.dropped_items, self.camera_pos)
