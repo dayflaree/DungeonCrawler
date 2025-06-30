@@ -1136,12 +1136,12 @@ class DungeonRenderer:
         # Choose texture based on item type
         if item.item_type == 'skeleton_sword' and self.skeleton_sword_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.skeleton_sword_texture_id)
-            item_size = 0.65  # Match rusty sword size
-            item_height = item_size * (984/718)  # Skeleton sword aspect ratio
+            item_size = 0.32  # Smaller dropped skeleton sword
+            item_height = item_size  # 1:1 aspect ratio (125x125)
         elif item.item_type == 'rusty_sword' and self.weapon_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.weapon_texture_id)  # wep_rusty.png (hotbar icon)
-            item_size = 0.65  # Increased size
-            item_height = item_size * (500/255)  # Rusty sword aspect ratio updated to 255x500
+            item_size = 0.32  # Smaller dropped rusty sword
+            item_height = item_size  # 1:1 aspect ratio (125x125)
         elif item.item_type == 'health_potion' and self.potion_health_texture_id:
             glBindTexture(GL_TEXTURE_2D, self.potion_health_texture_id)
             item_size = 0.25
@@ -1296,7 +1296,6 @@ class NPC:
             return
         self.last_player_tile = player_tile
         self.path = astar(grid, skel_tile, player_tile)
-        print(f"NPC ({self.npc_type}) at {skel_tile} path to {player_tile}: {self.path}")
         self.path_timer = 20
 
     def move_along_path(self, collision_checker, speed=0.05):
@@ -1607,7 +1606,7 @@ class DungeonCrawler:
                         print("Not enough mana to cast magic spell!")
             elif event.type == pygame.MOUSEMOTION:
                 self.camera_rot[1] -= event.rel[0] * self.mouse_sensitivity * 0.01  # Fixed left/right
-                # self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Disabled up/down
+                self.camera_rot[0] -= event.rel[1] * self.mouse_sensitivity * 0.01  # Enable up/down
                 # self.camera_rot[0] = max(-1.5, min(1.5, self.camera_rot[0]))  # Disabled pitch clamping
         keys = pygame.key.get_pressed()
         # Fix forward vector calculation for proper W/S movement
@@ -1825,7 +1824,7 @@ class DungeonCrawler:
             if not self.renderer.held_skeleton_sword_texture_id:
                 return
             held_texture_id = self.renderer.held_skeleton_sword_texture_id
-            held_width = 340  # Match rusty sword size
+            held_width = 300  # Slightly smaller than rusty sword
             held_height = held_width * (250/108)
         elif self.inventory[self.selected_slot]["type"] == "health_potion":
             if not self.renderer.potion_health_texture_id:
@@ -2069,7 +2068,7 @@ class DungeonCrawler:
         glLoadIdentity()
         
         # Apply camera rotation and position
-        # glRotatef(-self.camera_rot[0] * 180 / math.pi, 1, 0, 0)  # Disabled pitch rotation (up/down)
+        glRotatef(-self.camera_rot[0] * 180 / math.pi, 1, 0, 0)  # Enable pitch rotation (up/down)
         glRotatef(-self.camera_rot[1] * 180 / math.pi, 0, 1, 0)  # Only yaw rotation (left/right)
         glTranslatef(-self.camera_pos[0], -self.camera_pos[1], -self.camera_pos[2])
         
@@ -2218,10 +2217,10 @@ class DungeonCrawler:
                     skel.move_along_path(self.check_collision, speed=0.05)
                 alive.append(skel)
             else:
-                # Instantly drop item if just died
-                if random.random() < 0.4:
+                # Only skeletons can drop skeleton sword
+                if skel.npc_type == "skeleton" and random.random() < 0.4:
                     self.dropped_items.append(DroppedItem('skeleton_sword', skel.center_x, skel.center_z))
-                # 15% chance for ghost to drop magic scroll
+                # Only ghosts can drop magic scroll
                 if skel.npc_type == "ghost" and random.random() < 0.15:
                     self.dropped_items.append(DroppedItem('magic_scroll', skel.center_x, skel.center_z))
         
@@ -2249,8 +2248,7 @@ class DungeonCrawler:
         self.check_item_pickup()
 
     def check_item_pickup(self):
-        # No longer used for auto-pickup; handled by manual pickup with E
-        pass
+        pass  # Method removed as it is unused
 
     def try_attack_skeletons(self):
         # Only attack if a sword is equipped and not already swinging
@@ -2327,41 +2325,33 @@ class DungeonCrawler:
                 min_dist = dist
 
     def pick_up_item(self, item):
-        """Pick up a dropped item and add it to the first available hotbar slot"""
         if item.collected:
             return
         placed = False
-        # Check if item is a potion and can be stacked
         if item.item_type in ["health_potion", "magic_potion"]:
-            # Try to find existing stack of the same potion type
             for i in range(self.num_slots):
                 if (self.inventory[i]["type"] == item.item_type and 
                     self.inventory[i]["count"] > 0):
                     self.inventory[i]["count"] += 1
                     item.collected = True
-                    print(f"Added {item.item_type} to stack in slot {i} (total: {self.inventory[i]['count']})")
                     placed = True
                     break
-            # If not stacked, find first empty slot (right to left for potions)
             if not placed:
-                for i in range(self.num_slots - 1, -1, -1):  # Right to left
+                for i in range(self.num_slots - 1, -1, -1):
                     if self.inventory[i]["type"] == "empty":
                         self.inventory[i] = {"type": item.item_type, "count": 1}
                         item.collected = True
-                        print(f"Picked up {item.item_type} in slot {i}")
                         placed = True
                         break
         else:
-            # For non-potion items (swords, scrolls, etc.), place from left to right
             for i in range(self.num_slots):
                 if self.inventory[i]["type"] == "empty":
                     self.inventory[i] = {"type": item.item_type, "count": 1}
                     item.collected = True
-                    print(f"Picked up {item.item_type} in slot {i}")
                     placed = True
                     break
         if not placed:
-            print(f"No available hotbar slot for {item.item_type}!")
+            pass
 
     def drop_selected_item(self):
         """Drop the selected item in front of the player and shift items left to fill the gap."""
