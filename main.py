@@ -1270,11 +1270,11 @@ class NPC:
         if health is not None:
             self.health = health
         elif npc_type == "ghoul":
-            self.health = 10
-        elif npc_type == "skeleton":
             self.health = 20
-        elif npc_type == "ghost":
+        elif npc_type == "skeleton":
             self.health = 30
+        elif npc_type == "ghost":
+            self.health = 40
         else:
             self.health = 20
         self.flash_timer = 0  # Frames to flash red
