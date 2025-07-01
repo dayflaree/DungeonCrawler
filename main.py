@@ -6,7 +6,6 @@ import numpy as np
 import random
 import math
 from PIL import Image
-import os
 import heapq
 import time
 
@@ -231,6 +230,8 @@ class DungeonRenderer:
         self.fireball_texture_id = None
         self.magicball_texture_id = None  # Add this line
         self.key_texture_id = None
+        self.trapdoor_closed_texture_id = None
+        self.trapdoor_open_texture_id = None
         self.load_texture()
         
     def load_texture(self):
@@ -581,6 +582,37 @@ class DungeonRenderer:
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, key_image.width, key_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, key_image_data)
             print(f"Key texture loaded: {key_image.width}x{key_image.height}")
+            
+            # Load trapdoor closed texture
+            trapdoor_closed_image = Image.open("assets/trapdoor_closed.png")
+            trapdoor_closed_image = trapdoor_closed_image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            trapdoor_closed_image = trapdoor_closed_image.convert("RGBA")
+            trapdoor_closed_image_data = trapdoor_closed_image.tobytes()
+            self.trapdoor_closed_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.trapdoor_closed_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, trapdoor_closed_image.width, trapdoor_closed_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, trapdoor_closed_image_data)
+            print(f"Trapdoor closed texture loaded: {trapdoor_closed_image.width}x{trapdoor_closed_image.height}")
+            
+            # Load trapdoor open texture
+            trapdoor_open_image = Image.open("assets/trapdoor_open.png")
+            trapdoor_open_image = trapdoor_open_image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            trapdoor_open_image = trapdoor_open_image.convert("RGBA")
+            trapdoor_open_image_data = trapdoor_open_image.tobytes()
+            self.trapdoor_open_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.trapdoor_open_texture_id)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, trapdoor_open_image.width, trapdoor_open_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, trapdoor_open_image_data)
+            print(f"Trapdoor open texture loaded: {trapdoor_open_image.width}x{trapdoor_open_image.height}")
+            
+            # Unbind texture to avoid state issues
+            glBindTexture(GL_TEXTURE_2D, 0)
         except (OSError, IOError) as e:
             print(f"Error loading texture: {e}")
             self.texture_id = None
@@ -601,6 +633,8 @@ class DungeonRenderer:
             self.spell_magic_texture_id = None
             self.fireball_texture_id = None
             self.key_texture_id = None
+            self.trapdoor_closed_texture_id = None
+            self.trapdoor_open_texture_id = None
     
     def render_wall(self, x, z, height=2.0, _camera_pos=None):
         """Render a wall segment with proper lighting"""
@@ -1318,6 +1352,45 @@ class DungeonRenderer:
         for fireball in fireballs:
             self.render_fireball(fireball, camera_pos)
 
+    def render_trapdoor(self, trapdoor, camera_pos=None):
+        """Render a trapdoor as part of the floor, facing upward"""
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        
+        # Choose texture based on state
+        if trapdoor.is_unlocked:
+            if not self.trapdoor_open_texture_id:
+                return
+            texture_id = self.trapdoor_open_texture_id
+        else:
+            if not self.trapdoor_closed_texture_id:
+                return
+            texture_id = self.trapdoor_closed_texture_id
+        
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        
+        # Set material properties for trapdoor
+        glMaterialfv(GL_FRONT, GL_AMBIENT, [0.4, 0.3, 0.2, 1.0])
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, [0.8, 0.6, 0.4, 1.0])
+        glMaterialfv(GL_FRONT, GL_SPECULAR, [0.1, 0.1, 0.05, 1.0])
+        glMaterialf(GL_FRONT, GL_SHININESS, 5.0)
+        
+        # Trapdoor size - make it fit within a single tile
+        trapdoor_size = 0.9  # Slightly smaller than 1.0 to fit within tile
+        y = 0.01  # Slightly above floor to avoid z-fighting
+        
+        # Render as a flat quad on the floor, facing upward
+        glBegin(GL_QUADS)
+        glNormal3f(0, 1, 0)  # Normal pointing up
+        glTexCoord2f(0, 0); glVertex3f(trapdoor.center_x - trapdoor_size/2, y, trapdoor.center_z - trapdoor_size/2)
+        glTexCoord2f(1, 0); glVertex3f(trapdoor.center_x + trapdoor_size/2, y, trapdoor.center_z - trapdoor_size/2)
+        glTexCoord2f(1, 1); glVertex3f(trapdoor.center_x + trapdoor_size/2, y, trapdoor.center_z + trapdoor_size/2)
+        glTexCoord2f(0, 1); glVertex3f(trapdoor.center_x - trapdoor_size/2, y, trapdoor.center_z + trapdoor_size/2)
+        glEnd()
+        
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glDisable(GL_BLEND)
+
 def astar(grid, start, goal):
     """A* pathfinding for a 2D grid. Returns a list of (x, z) tiles from start to goal (inclusive), or [] if no path."""
     width, height = len(grid[0]), len(grid)
@@ -1426,22 +1499,7 @@ class NPC:
                 self.center_x = new_x
                 self.center_z = new_z
 
-    def move_toward_player(self, player_pos, collision_checker, speed=0.05):
-        if not self.is_alive:
-            return
-        dx = player_pos[0] - self.center_x
-        dz = player_pos[2] - self.center_z
-        dist = math.sqrt(dx*dx + dz*dz)
-        if dist < 1e-5:
-            return
-        move_dist = min(speed, dist)
-        move_x = dx / dist * move_dist
-        move_z = dz / dist * move_dist
-        new_x = self.center_x + move_x
-        new_z = self.center_z + move_z
-        if not collision_checker(new_x, new_z):
-            self.center_x = new_x
-            self.center_z = new_z
+
 
 class DroppedItem:
     def __init__(self, item_type, x, z):
@@ -1450,6 +1508,14 @@ class DroppedItem:
         self.z = z
         self.collected = False
         self.spawn_time = time.time()
+
+class Trapdoor:
+    def __init__(self, x, z):
+        self.x = x
+        self.z = z
+        self.is_unlocked = False
+        self.center_x = x + 0.5
+        self.center_z = z + 0.5
 
 class Fireball:
     def __init__(self, x, z, direction_x, direction_z, speed=0.3, max_distance=7.0, is_magic=False, collision_checker=None):
@@ -1542,6 +1608,7 @@ class DungeonCrawler:
         
         # Chest interaction variables
         self.nearby_chest = None
+        self.nearby_trapdoor = None
         self.interaction_distance = 2.0  # Distance to trigger interaction
         
         # Hotbar navigation variables
@@ -1590,10 +1657,25 @@ class DungeonCrawler:
         self.chest_sound = None
         self.potion_sound = None
         self.spell_sound = None
+        self.key_sound = None
         self.load_sound_effects()
 
         # Spawn the key at the farthest location from the player
         self.spawn_key_item()
+        
+        # Spawn the trapdoor at a random location
+        self.spawn_trapdoor()
+        
+        # TESTING: Spawn player next to trapdoor and add key to hotbar
+        # This will be removed after testing
+        if hasattr(self, 'trapdoor') and self.trapdoor:
+            # Spawn player right next to the trapdoor
+            self.camera_pos = [self.trapdoor.center_x + 1.0, 1, self.trapdoor.center_z]
+            print(f"TESTING: Player spawned next to trapdoor at ({self.camera_pos[0]:.2f}, {self.camera_pos[2]:.2f})")
+            
+            # Add key to hotbar for testing
+            self.inventory[1] = {"type": "key", "count": 1}  # Add key to slot 1
+            print("TESTING: Key added to hotbar slot 1")
     
     def load_background_music(self):
         """Load and start the background music"""
@@ -1646,16 +1728,19 @@ class DungeonCrawler:
             self.potion_sound.set_volume(0.5)  # Set volume to 50%
             self.spell_sound = pygame.mixer.Sound("assets/spell.wav")
             self.spell_sound.set_volume(0.5)  # Set volume to 50%
+            self.key_sound = pygame.mixer.Sound("assets/key.wav")
+            self.key_sound.set_volume(0.5)  # Set volume to 50%
             print("Sound effects loaded successfully")
         except Exception as e:
             print(f"Could not load sound effects: {e}")
-            print("Make sure 'hit_npc.wav', 'hit.wav', 'death_npc.wav', 'chest.wav', 'potion.wav', and 'spell.wav' exist in the assets folder")
+            print("Make sure 'hit_npc.wav', 'hit.wav', 'death_npc.wav', 'chest.wav', 'potion.wav', 'spell.wav', and 'key.wav' exist in the assets folder")
             self.hit_npc_sound = None
             self.hit_player_sound = None
             self.death_npc_sound = None
             self.chest_sound = None
             self.potion_sound = None
             self.spell_sound = None
+            self.key_sound = None
     
     def setup_gl(self):
         """Setup OpenGL environment"""
@@ -1704,6 +1789,9 @@ class DungeonCrawler:
                 elif event.key == pygame.K_e and self.nearby_item is not None:
                     # Interact with nearby dropped item
                     self.pick_up_item(self.nearby_item)
+                elif event.key == pygame.K_e and self.nearby_trapdoor is not None:
+                    # Interact with nearby trapdoor
+                    self.interact_with_trapdoor()
                 elif event.key == pygame.K_q:
                     # Drop the selected item
                     self.drop_selected_item()
@@ -1767,7 +1855,19 @@ class DungeonCrawler:
         self.check_nearby_chests()
         # Check for nearby dropped items
         self.check_nearby_items()
+        # Check for nearby trapdoor
+        self.check_nearby_trapdoor()
         return True
+    
+    def check_nearby_trapdoor(self):
+        """Check if player is near the trapdoor and has the key selected"""
+        self.nearby_trapdoor = None
+        if hasattr(self, 'trapdoor') and self.trapdoor and not self.trapdoor.is_unlocked:
+            # Check if player has key selected in hotbar
+            if self.inventory[self.selected_slot]["type"] == "key":
+                dist = math.sqrt((self.trapdoor.center_x - self.camera_pos[0])**2 + (self.trapdoor.center_z - self.camera_pos[2])**2)
+                if dist <= self.interaction_distance:
+                    self.nearby_trapdoor = self.trapdoor
     
     def interact_with_chest(self):
         """Handle chest interaction - drop items and remove the chest from the game"""
@@ -1827,6 +1927,33 @@ class DungeonCrawler:
             
             # Clear the nearby chest reference
             self.nearby_chest = None
+    
+    def interact_with_trapdoor(self):
+        """Handle trapdoor interaction - unlock with key"""
+        if self.nearby_trapdoor is not None and self.inventory[self.selected_slot]["type"] == "key":
+            print("Unlocking trapdoor with key!")
+            
+            # Play key sound
+            if self.key_sound:
+                self.key_sound.play()
+            
+            # Unlock the trapdoor
+            self.nearby_trapdoor.is_unlocked = True
+            
+            # Remove the key from inventory
+            if self.inventory[self.selected_slot]["count"] > 1:
+                self.inventory[self.selected_slot]["count"] -= 1
+            else:
+                # Remove the item and shift all items to the right of this slot left
+                for i in range(self.selected_slot, self.num_slots - 1):
+                    self.inventory[i] = self.inventory[i + 1]
+                self.inventory[self.num_slots - 1] = {"type": "empty", "count": 0}
+                # If the selected slot is now empty, move selection left if possible
+                if self.inventory[self.selected_slot]["type"] == "empty" and self.selected_slot > 0:
+                    self.selected_slot = self.selected_slot - 1
+            
+            # Clear the nearby trapdoor reference
+            self.nearby_trapdoor = None
     
     def check_nearby_chests(self):
         """Check if player is near any chests and update nearby_chest"""
@@ -2315,12 +2442,16 @@ class DungeonCrawler:
         if hasattr(self, 'key_item') and self.key_item and not self.key_item.collected:
             self.renderer.render_dropped_item(self.key_item, self.camera_pos)
         
+        # Always render the trapdoor if it exists
+        if hasattr(self, 'trapdoor') and self.trapdoor:
+            self.renderer.render_trapdoor(self.trapdoor, self.camera_pos)
+        
         # Render all UI elements last (on top of everything)
         # Render hotbar
         self.render_hotbar()
         
-        # Render interact prompt if near a chest or item
-        if self.nearby_chest is not None or (self.nearby_item is not None and not self.nearby_item.collected):
+        # Render interact prompt if near a chest, item, or trapdoor
+        if self.nearby_chest is not None or (self.nearby_item is not None and not self.nearby_item.collected) or self.nearby_trapdoor is not None:
             self.renderer.render_interact_prompt(self.width, self.height)
         
         # Render equipped weapon
@@ -2419,10 +2550,8 @@ class DungeonCrawler:
         now = time.time()
         self.dropped_items = [item for item in self.dropped_items if (item.item_type == 'key') or (not item.collected and (now - item.spawn_time) < 120)]
         self.skeletons = alive
-        self.check_item_pickup()
 
-    def check_item_pickup(self):
-        pass  # Method removed as it is unused
+
 
     def try_attack_skeletons(self):
         # Only attack if a sword is equipped and not already swinging
@@ -2719,6 +2848,23 @@ class DungeonCrawler:
             print(f"Key spawned at ({farthest_pos[0]:.2f}, {farthest_pos[1]:.2f})")
         else:
             print("Failed to spawn key - no walkable tiles found!")
+
+    def spawn_trapdoor(self):
+        """Spawn a trapdoor at a random walkable location"""
+        # Find a random walkable tile
+        walkable_tiles = []
+        for z in range(len(self.dungeon_grid)):
+            for x in range(len(self.dungeon_grid[0])):
+                if self.dungeon_grid[z][x] == 0:  # Walkable
+                    walkable_tiles.append((x, z))
+        
+        if walkable_tiles:
+            # Choose a random walkable tile
+            trapdoor_x, trapdoor_z = random.choice(walkable_tiles)
+            self.trapdoor = Trapdoor(trapdoor_x, trapdoor_z)
+            print(f"Trapdoor spawned at ({trapdoor_x + 0.5:.2f}, {trapdoor_z + 0.5:.2f})")
+        else:
+            print("Failed to spawn trapdoor - no walkable tiles found!")
 
 if __name__ == "__main__":
     game = DungeonCrawler()
