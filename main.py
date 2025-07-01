@@ -192,15 +192,13 @@ class DungeonGenerator:
         return self.grid
 
     def _choose_npc_type(self):
-        r = random.random()
-        if r < 0.0:  # TESTING: 0% chance for ghoul
+        r = random.randint(1, 150)  # 1 to 150 inclusive
+        if r <= 70:
             return "ghoul"
-        elif r < 0.0:  # TESTING: 0% chance for skeleton
+        elif r <= 120:  # 70+50=120
             return "skeleton"
-        elif r < 1.0:  # TESTING: 100% chance for ghost
-            return "ghost"
         else:
-            return "ghost"  # fallback to ghost
+            return "ghost"
 
 class DungeonRenderer:
     def __init__(self):
