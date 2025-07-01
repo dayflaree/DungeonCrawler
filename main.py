@@ -1615,14 +1615,14 @@ class Fireball:
         if self.distance_traveled >= self.max_distance:
             self.active = False
     
-    def check_collision_with_skeleton(self, skeleton, sound_callback=None, death_callback=None):
-        """Check if fireball hits a skeleton"""
-        if not self.active or not skeleton.is_alive:
+    def check_collision_with_npc(self, npc, sound_callback=None, death_callback=None):
+        """Check if fireball hits an NPC (ghoul, skeleton, ghost)"""
+        if not self.active or not npc.is_alive:
             return False
         
-        # Calculate distance between fireball and skeleton
-        dx = self.x - skeleton.center_x
-        dz = self.z - skeleton.center_z
+        # Calculate distance between fireball and NPC
+        dx = self.x - npc.center_x
+        dz = self.z - npc.center_z
         distance = math.sqrt(dx*dx + dz*dz)
         
         # Collision radius (fireball size)
@@ -1631,9 +1631,9 @@ class Fireball:
         if distance <= collision_radius:
             # Hit! Apply damage and destroy fireball
             if hasattr(self, 'is_magic') and self.is_magic:
-                skeleton.take_damage(20, sound_callback=sound_callback, death_callback=death_callback)  # Magicball deals 20 damage
+                npc.take_damage(20, sound_callback=sound_callback, death_callback=death_callback)  # Magicball deals 20 damage
             else:
-                skeleton.take_damage(10, sound_callback=sound_callback, death_callback=death_callback)  # Fireball deals 10 damage
+                npc.take_damage(10, sound_callback=sound_callback, death_callback=death_callback)  # Fireball deals 10 damage
             self.active = False
             return True
         
@@ -2603,7 +2603,7 @@ class DungeonCrawler:
             # Only check if this is a player projectile (not a ghost projectile)
             if not hasattr(fireball, 'is_magic') or not fireball.is_magic:
                 for skeleton in self.skeletons:
-                    if fireball.check_collision_with_skeleton(skeleton, 
+                    if fireball.check_collision_with_npc(skeleton, 
                         sound_callback=lambda: self.hit_npc_sound.play() if self.hit_npc_sound else None,
                         death_callback=lambda: self.death_npc_sound.play() if self.death_npc_sound else None):
                         print(f"Player fireball hit {skeleton.npc_type}! Health: {skeleton.health}")
