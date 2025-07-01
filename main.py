@@ -193,14 +193,14 @@ class DungeonGenerator:
 
     def _choose_npc_type(self):
         r = random.random()
-        if r < 0.7:
+        if r < 0.0:  # TESTING: 0% chance for ghoul
             return "ghoul"
-        elif r < 0.7 + 0.25:
+        elif r < 0.0:  # TESTING: 0% chance for skeleton
             return "skeleton"
-        elif r < 0.7 + 0.25 + 0.05:
+        elif r < 1.0:  # TESTING: 100% chance for ghost
             return "ghost"
         else:
-            return "skeleton"  # fallback
+            return "ghost"  # fallback to ghost
 
 class DungeonRenderer:
     def __init__(self):
@@ -1188,13 +1188,14 @@ class DungeonRenderer:
             glColor4f(1.0, 1.0, 1.0, 1.0)
         glDisable(GL_LIGHTING)
         width = 0.7
-        # Use different aspect ratios if needed
+        # Use correct aspect ratios for each NPC type
         if npc.npc_type == "ghoul":
-            height = width * (984/718)
+            height = width * (1152/664)  # 664x1152 aspect ratio
         elif npc.npc_type == "ghost":
-            height = width * (984/718)
-        else:
-            height = width * (984/718)
+            width = 0.5  # Make ghost smaller
+            height = width * (1152/530)  # 530x1152 aspect ratio
+        else:  # skeleton
+            height = width * (984/718)   # 718x984 aspect ratio
         if camera_pos:
             to_player_x = camera_pos[0] - npc.center_x
             to_player_z = camera_pos[2] - npc.center_z
@@ -1443,6 +1444,9 @@ class NPC:
         self.path = []  # Path of (x, z) tiles to follow
         self.path_timer = 0  # Frames until next path recalculation
         self.last_player_tile = None
+        # Ghost-specific ranged attack properties
+        self.ranged_attack_cooldown = 0  # Frames until next ranged attack (for ghosts)
+        self.ranged_attack_range = 8.0  # Maximum range for ranged attacks
 
     def update_path(self, grid, player_tile):
         skel_tile = (int(self.center_x), int(self.center_z))
@@ -1498,6 +1502,64 @@ class NPC:
             if collision_checker is None or not collision_checker(new_x, new_z):
                 self.center_x = new_x
                 self.center_z = new_z
+
+    def can_perform_ranged_attack(self, player_pos):
+        """Check if ghost can perform a ranged attack"""
+        if self.npc_type != "ghost" or not self.is_alive:
+            return False
+        
+        # Check cooldown (1 second = 60 frames at 60 FPS)
+        if self.ranged_attack_cooldown > 0:
+            return False
+        
+        # Check distance to player
+        dx = player_pos[0] - self.center_x
+        dz = player_pos[2] - self.center_z
+        distance = math.sqrt(dx*dx + dz*dz)
+        
+        # Ghost can attack from 2-7 units away (same activation radius as other NPCs)
+        return 2.0 <= distance <= 7.0
+
+    def perform_ranged_attack(self, player_pos, fireball_list, collision_checker, sound_callback=None):
+        """Perform a ranged attack (ghost magicball)"""
+        if not self.can_perform_ranged_attack(player_pos):
+            return False
+        
+        # Calculate direction to player
+        dx = player_pos[0] - self.center_x
+        dz = player_pos[2] - self.center_z
+        distance = math.sqrt(dx*dx + dz*dz)
+        
+        if distance > 0:
+            # Normalize direction
+            direction_x = dx / distance
+            direction_z = dz / distance
+            
+            # Create magicball projectile
+            magicball = Fireball(
+                self.center_x, 
+                self.center_z, 
+                direction_x, 
+                direction_z, 
+                speed=0.2,  # Slightly slower than player spells
+                max_distance=7.0,  # Same range as player magic spell
+                is_magic=True, 
+                collision_checker=collision_checker
+            )
+            
+            # Add to fireball list
+            fireball_list.append(magicball)
+            
+            # Play spell sound
+            if sound_callback:
+                sound_callback()
+            
+            # Set cooldown (1 second = 60 frames)
+            self.ranged_attack_cooldown = 60
+            
+            return True
+        
+        return False
 
 
 
@@ -2475,12 +2537,19 @@ class DungeonCrawler:
             if skel.is_alive:
                 if skel.flash_timer > 0:
                     skel.flash_timer -= 1
+                
+                # Update ranged attack cooldown for ghosts
+                if skel.ranged_attack_cooldown > 0:
+                    skel.ranged_attack_cooldown -= 1
+                
                 dx = self.camera_pos[0] - skel.center_x
                 dz = self.camera_pos[2] - skel.center_z
                 dist = math.sqrt(dx*dx + dz*dz)
                 activation_radius = 7.0
                 min_distance = 1.7
                 attacked = False
+                
+                # Handle melee attacks for all NPCs
                 if skel.attack_cooldown > 0:
                     skel.attack_cooldown -= 1
                 else:
@@ -2501,12 +2570,21 @@ class DungeonCrawler:
                         skel.attack_cooldown = 40
                         skel.frozen_timer = 10
                         attacked = True
+                
+                # Handle ranged attacks for ghosts
+                if skel.npc_type == "ghost" and not attacked:
+                    if skel.perform_ranged_attack(self.camera_pos, self.fireballs, self.check_collision, 
+                        sound_callback=lambda: self.spell_sound.play() if self.spell_sound else None):
+                        print("Ghost launched a magicball!")
+                
                 if skel.frozen_timer > 0:
                     skel.frozen_timer -= 1
+                
                 # Only move if not attacking, not frozen, not too close, and within activation radius
                 if not attacked and skel.frozen_timer == 0 and dist < activation_radius and dist > min_distance:
                     skel.update_path(self.dungeon_grid, player_tile)
-                    skel.move_along_path(self.check_collision, speed=0.05)
+                    skel.move_along_path(self.check_collision, speed=0.05)  # All NPCs move at same speed
+                
                 alive.append(skel)
             else:
                 # Only skeletons can drop skeleton sword
@@ -2516,18 +2594,42 @@ class DungeonCrawler:
                 if skel.npc_type == "ghost" and random.random() < 0.15:
                     self.dropped_items.append(DroppedItem('magic_scroll', skel.center_x, skel.center_z))
         
-        # Update fireballs and check for skeleton collisions
+        # Update fireballs and check for collisions
         active_fireballs = []
         for fireball in self.fireballs:
             fireball.update()
             
-            # Check collision with skeletons
-            for skeleton in self.skeletons:
-                if fireball.check_collision_with_skeleton(skeleton, 
-                    sound_callback=lambda: self.hit_npc_sound.play() if self.hit_npc_sound else None,
-                    death_callback=lambda: self.death_npc_sound.play() if self.death_npc_sound else None):
-                    print(f"Fireball hit skeleton! Skeleton health: {skeleton.health}")
-                    break
+            # Check collision with skeletons (player projectiles hitting skeletons)
+            # Only check if this is a player projectile (not a ghost projectile)
+            if not hasattr(fireball, 'is_magic') or not fireball.is_magic:
+                for skeleton in self.skeletons:
+                    if fireball.check_collision_with_skeleton(skeleton, 
+                        sound_callback=lambda: self.hit_npc_sound.play() if self.hit_npc_sound else None,
+                        death_callback=lambda: self.death_npc_sound.play() if self.death_npc_sound else None):
+                        print(f"Player fireball hit {skeleton.npc_type}! Health: {skeleton.health}")
+                        break
+            
+            # Check collision with player (ghost projectiles hitting player)
+            if hasattr(fireball, 'is_magic') and fireball.is_magic:
+                # This is a ghost projectile, check if it hits the player
+                dx = fireball.x - self.camera_pos[0]
+                dz = fireball.z - self.camera_pos[2]
+                distance = math.sqrt(dx*dx + dz*dz)
+                collision_radius = 0.3
+                
+                if distance <= collision_radius:
+                    # Ghost projectile hit player!
+                    damage = 15  # Ghost magicball deals 15 damage
+                    self.current_health = max(0, self.current_health - damage)
+                    print(f"Ghost magicball hit player! Damage: {damage}, Health: {self.current_health}")
+                    
+                    # Play hit sound
+                    if self.hit_player_sound:
+                        self.hit_player_sound.play()
+                    
+                    # Destroy the projectile
+                    fireball.active = False
+                    continue
             
             # Keep only active fireballs
             if fireball.active:
