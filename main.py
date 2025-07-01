@@ -1665,17 +1665,6 @@ class DungeonCrawler:
         
         # Spawn the trapdoor at a random location
         self.spawn_trapdoor()
-        
-        # TESTING: Spawn player next to trapdoor and add key to hotbar
-        # This will be removed after testing
-        if hasattr(self, 'trapdoor') and self.trapdoor:
-            # Spawn player right next to the trapdoor
-            self.camera_pos = [self.trapdoor.center_x + 1.0, 1, self.trapdoor.center_z]
-            print(f"TESTING: Player spawned next to trapdoor at ({self.camera_pos[0]:.2f}, {self.camera_pos[2]:.2f})")
-            
-            # Add key to hotbar for testing
-            self.inventory[1] = {"type": "key", "count": 1}  # Add key to slot 1
-            print("TESTING: Key added to hotbar slot 1")
     
     def load_background_music(self):
         """Load and start the background music"""
