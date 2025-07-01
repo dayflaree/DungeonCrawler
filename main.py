@@ -1501,26 +1501,63 @@ class NPC:
                 self.center_x = new_x
                 self.center_z = new_z
 
-    def can_perform_ranged_attack(self, player_pos):
-        """Check if ghost can perform a ranged attack"""
+    def can_perform_ranged_attack(self, player_pos, dungeon_grid=None):
+        """Check if ghost can perform a ranged attack, including line of sight."""
         if self.npc_type != "ghost" or not self.is_alive:
             return False
-        
         # Check cooldown (1 second = 60 frames at 60 FPS)
         if self.ranged_attack_cooldown > 0:
             return False
-        
         # Check distance to player
         dx = player_pos[0] - self.center_x
         dz = player_pos[2] - self.center_z
         distance = math.sqrt(dx*dx + dz*dz)
-        
-        # Ghost can attack from 2-7 units away (same activation radius as other NPCs)
-        return 2.0 <= distance <= 7.0
+        if not (2.0 <= distance <= 7.0):
+            return False
+        # Line of sight check (Bresenham's line algorithm on grid)
+        if dungeon_grid is not None:
+            x0, y0 = int(self.center_x), int(self.center_z)
+            x1, y1 = int(player_pos[0]), int(player_pos[2])
+            points = self._bresenham_line(x0, y0, x1, y1)
+            for px, py in points:
+                if (px, py) == (x0, y0) or (px, py) == (x1, y1):
+                    continue
+                if dungeon_grid[py][px] == 1:
+                    return False  # Wall blocks line of sight
+        return True
 
-    def perform_ranged_attack(self, player_pos, fireball_list, collision_checker, sound_callback=None):
-        """Perform a ranged attack (ghost magicball)"""
-        if not self.can_perform_ranged_attack(player_pos):
+    def _bresenham_line(self, x0, y0, x1, y1):
+        """Yield grid points from (x0, y0) to (x1, y1) using Bresenham's algorithm."""
+        points = []
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        x, y = x0, y0
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        if dx > dy:
+            err = dx / 2.0
+            while x != x1:
+                points.append((x, y))
+                err -= dy
+                if err < 0:
+                    y += sy
+                    err += dx
+                x += sx
+        else:
+            err = dy / 2.0
+            while y != y1:
+                points.append((x, y))
+                err -= dx
+                if err < 0:
+                    x += sx
+                    err += dy
+                y += sy
+        points.append((x1, y1))
+        return points
+
+    def perform_ranged_attack(self, player_pos, fireball_list, collision_checker, sound_callback=None, dungeon_grid=None):
+        """Perform a ranged attack (ghost magicball) with line of sight check."""
+        if not self.can_perform_ranged_attack(player_pos, dungeon_grid=dungeon_grid):
             return False
         
         # Calculate direction to player
@@ -1727,20 +1764,27 @@ class DungeonCrawler:
         self.spawn_trapdoor()
     
     def load_background_music(self):
-        """Load and start the background music"""
+        """Load and start random background music, and keep looping random tracks when one ends."""
+        self.dungeon_tracks = [
+            "assets/dungeon1.wav",
+            "assets/dungeon2.wav",
+            "assets/dungeon3.wav",
+            "assets/dungeon4.wav"
+        ]
+        self._play_random_dungeon_track()
+        # Set up event for when music ends
+        pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
+
+    def _play_random_dungeon_track(self):
+        track = random.choice(self.dungeon_tracks)
         try:
-            pygame.mixer.music.load("assets/dungeon1.wav")
-            pygame.mixer.music.set_volume(0.3)  # Set volume to 30% before playing
-            pygame.mixer.music.play(-1)  # -1 means loop indefinitely
-            pygame.mixer.music.set_volume(0.3)  # Set volume to 30% after playing (in case it is reset)
-            # Also set the volume on the default channel to 30%
-            pygame.mixer.Channel(0).set_volume(0.3)
-            # Debug: If still not quiet, set to 0.05 (almost mute)
-            # pygame.mixer.music.set_volume(0.05)
-            print("Background music loaded and started (volume forced to 30%)")
+            pygame.mixer.music.load(track)
+            pygame.mixer.music.set_volume(0.3)
+            pygame.mixer.music.play()
+            print(f"Now playing: {track}")
         except Exception as e:
             print(f"Could not load background music: {e}")
-            print("Make sure 'dungeon1.wav' exists in the assets folder")
+            print(f"Make sure '{track}' exists in the assets folder")
     
     def load_hotbar(self):
         """Load the hotbar texture"""
@@ -1825,10 +1869,13 @@ class DungeonCrawler:
         glMatrixMode(GL_MODELVIEW)
     
     def handle_input(self):
-        """Handle keyboard and mouse input"""
+        """Handle keyboard and mouse input, and check for music end event."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            elif event.type == pygame.USEREVENT + 1:
+                # Music ended, play another random track
+                self._play_random_dungeon_track()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
